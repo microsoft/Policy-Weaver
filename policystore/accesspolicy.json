@@ -1,0 +1,22 @@
+{
+	"id": "<<DATA ACCESS ROLE ID ASSIGNED BY FABRIC>>",
+	"name": "<<DATA ACCESS ROLE NAME>>",
+	"workspace": {
+        "tenantid": "<<AD/ENTRA TENANT>>",
+		"id": "<<FABRIC WORKSPACE ID>>",
+		"name": "<<FABRIC WORKSPACE NAME>>",
+		"items": [
+			{
+				"path": "<<TABLE OR FILE LAKEHOUSE PATH>>"
+			}
+		]
+	},
+	"accesstype": "<<ITEM ACCESS TYPE ENUM: Read|Write>>",
+	"members": [
+		{
+			"type": "<<MEMBER TYPE ENUM: User|Group>>",
+			"name": "<<AD/ENTRA USER OR GROUP NAME>>",
+			"objectid": "<<AD/ENTRA ID FOR USER OR GROUP>>"
+		}
+	]
+ }

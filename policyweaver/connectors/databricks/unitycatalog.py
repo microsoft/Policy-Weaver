@@ -114,8 +114,8 @@ class UnityCatalogUtil:
     def get_unity_catalog_schema_permissions(self) -> list:
         schema_permissions = []
 
-        catalog = self.config["dbx_uc_catalog"]
-        schemas = self.config["dbx_uc_schemas"]
+        catalog = self.config["uc_catalog"]
+        schemas = self.config["uc_schemas"]
         securable_type = UnityCatalogSecurable.SCHEMA
         
         for schema in schemas:
