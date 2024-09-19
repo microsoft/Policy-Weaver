@@ -1,0 +1,31 @@
+{
+    "connectortype": "UNITYCATALOG",
+    "policystore":
+    {
+        "type": "ONELAKE",
+        "path": "/policystore"
+    },
+    "fabric": {
+        "workspaceid":"",
+        "lakehouseid":"",
+        "lakehousename":"",
+        "credentials": "",
+        "apiendpoint": "api.fabric.microsoft.com",
+        "onelakeendpoint": "onelake.dfs.fabric.microsoft.com"
+    },
+    "connectors":
+    {
+        "unitycatalog": {
+            "host": "",
+            "token": "",
+            "catalog": "",
+            "schemas": ""
+        },
+        "snowflake": {},
+        "bigquery": {
+            "billingproject": "",
+            "dataset": "",
+            "credentials": ""
+        }
+    }
+}

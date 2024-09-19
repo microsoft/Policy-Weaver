@@ -11,12 +11,14 @@ class UnityCatalogSecurable(Enum):
     TABLE = "table"
 
 class UnityCatalogConnector(PolicySource):
-    def __init__(self, dbx_host:str, dbx_token:str, uc_catalog:str, uc_schemas:str):
+    def __init__(self, connector_cfg:str):
+        cfg = connector_cfg["unitycatalog"]
+
         self.config = {
-            'dbx_workspace': dbx_host,
-            'dbx_token': dbx_token,
-            'uc_catalog': uc_catalog,
-            'uc_schemas': json.loads(uc_schemas)
+            'workspace': cfg["host"],
+            'token': cfg["token"],
+            'catalog': cfg["catalog"],
+            'schemas': json.loads(cfg["schemas"])
         }
         self.util = UnityCatalogUtil(config=self.config)
     
@@ -51,8 +53,8 @@ class UnityCatalogUtil:
         self.config = config
           
     def execute_dbx_api(self, api_method:str, params:dict={}) -> str:
-        dbx_host = self.config["dbx_workspace"]
-        dbx_token = self.config["dbx_token"]
+        dbx_host = self.config["workspace"]
+        dbx_token = self.config["token"]
 
         headers = {
             'Authorization': f'Bearer {dbx_token}',
@@ -71,13 +73,13 @@ class UnityCatalogUtil:
     def get_unity_catalog_tables(self) -> list:
         tbls = []
 
-        catalog = self.config["uc_catalog"]
-        schemas = self.config["uc_schemas"]
+        catalog = self.config["catalog"]
+        schemas = self.config["schemas"]
 
         for schema in schemas:
             api_method = "/api/2.1/unity-catalog/tables"
             params = {
-                'catalog_name' : databricks_config["dbx_uc_catalog"],
+                'catalog_name' : self.config["catalog"],
                 'schema_name' : schema
             }
             
@@ -107,15 +109,15 @@ class UnityCatalogUtil:
 
     def get_unity_catalog_permissions(self) -> list:
         securable_type = UnityCatalogSecurable.CATALOG
-        catalog = self.config["uc_catalog"]
+        catalog = self.config["catalog"]
 
         return self.get_unity_catalog_permission(securable_type, catalog)
 
     def get_unity_catalog_schema_permissions(self) -> list:
         schema_permissions = []
 
-        catalog = self.config["uc_catalog"]
-        schemas = self.config["uc_schemas"]
+        catalog = self.config["catalog"]
+        schemas = self.config["schemas"]
         securable_type = UnityCatalogSecurable.SCHEMA
         
         for schema in schemas:
