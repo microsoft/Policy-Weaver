@@ -1,7 +1,7 @@
 alabaster==0.7.16
 annotated-types==0.7.0
 Babel==2.15.0
-certifi==2024.6.2
+certifi==2024.7.4
 cffi==1.16.0
 charset-normalizer==3.3.2
 colorama==0.4.6
