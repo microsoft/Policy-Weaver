@@ -10,7 +10,7 @@ docutils==0.20.1
 idna==3.7
 imagesize==1.4.1
 iniconfig==2.0.0
-Jinja2==3.1.4
+Jinja2==3.1.5
 MarkupSafe==2.1.5
 msal==1.29.0
 packaging==24.1
