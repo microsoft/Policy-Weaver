@@ -7,6 +7,7 @@ policy_weaver.egg-info/dependency_links.txt
 policy_weaver.egg-info/requires.txt
 policy_weaver.egg-info/top_level.txt
 policyweaver/__init__.py
+policyweaver/auth.py
 policyweaver/policyweaver.py
 policyweaver/weavercore.py
 policyweaver/models/__init__.py

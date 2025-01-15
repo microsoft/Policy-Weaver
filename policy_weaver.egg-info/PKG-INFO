@@ -30,6 +30,7 @@ Requires-Dist: databricks-sdk>=0.40.0
 Requires-Dist: msgraph-sdk>=1.16.0
 Requires-Dist: pydantic>=2.10.5
 Requires-Dist: python-dotenv>=1.0.1
+Requires-Dist: pyyaml>=6.0.2
 
 # Policy Weaver 
 
