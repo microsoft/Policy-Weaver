@@ -1,5 +1,6 @@
-import base64 as b64
-
+from pydantic import TypeAdapter
+from requests.exceptions import HTTPError
+from typing import List
 from policyweaver.support.fabricapiclient import FabricAPI
 from policyweaver.support.microsoftgraphclient import MicrosoftGraphClient
 from policyweaver.models.fabricmodel import (
@@ -29,7 +30,7 @@ class PolicyWeaverError(Exception):
 
 
 class Weaver:
-    fabric_policy_role_prefix = "pw"
+    fabric_policy_role_prefix = "xxPOLICYWEAVERxx"
 
     def __init__(self, config: SourceMap):
         self.config = config
@@ -54,6 +55,7 @@ class Weaver:
         if not self.config.fabric.workspace_name:
             self.config.fabric.workspace_name = self.fabric_api.get_workspace_name()
 
+        self.__get_current_access_policy__()
         self.__apply_policies__(policy_export)
 
     def __apply_policies__(self, policy_export: PolicyExport):
@@ -70,6 +72,11 @@ class Weaver:
                     )
                     access_policies.append(access_policy)
 
+        # Append policies not managed by PolicyWeaver
+        if self.current_fabric_policies:
+            xapply = [p for p in self.current_fabric_policies if not p.name.startswith(self.fabric_policy_role_prefix)]
+            access_policies.extend(xapply)
+
         dap_request = {
             "value": [
                 p.model_dump(exclude_none=True, exclude_unset=True)
@@ -83,6 +90,17 @@ class Weaver:
 
         print(f"Access Polices Updated: {len(access_policies)}")
 
+    def __get_current_access_policy__(self):
+        try:
+            result = self.fabric_api.list_data_access_policy(self.config.fabric.lakehouse_id)
+            type_adapter = TypeAdapter(List[DataAccessPolicy])
+            self.current_fabric_policies = type_adapter.validate_python(result["value"])
+        except HTTPError as e:
+            if e.response.status_code == 400:
+                PolicyWeaverError("ERROR: Please ensure Data Access Policies are enabled on the lakehouse.")
+            else:
+                raise e
+            
     def __get_table_mapping__(self, catalog, schema, table) -> tuple():
         if not table:
             return None
@@ -115,14 +133,19 @@ class Weaver:
 
         return user_map
 
+    def __get_role_name__(self, policy) -> str:
+        if policy.catalog_schema:
+            role_description = f"{policy.catalog_schema.upper()}x{'' if not policy.table else policy.table.upper()}"
+        else:
+            role_description = policy.catalog.upper()
+
+        return f"xxPOLICYWEAVERxx{role_description}"
+    
     def __build_data_access_policy__(
         self, policy, permission, access_policy_type
     ) -> DataAccessPolicy:
-        role_description = f"{self.config.type}_{policy.catalog}_{'' if not policy.catalog_schema else policy.catalog_schema}_{'' if not policy.table else policy.table}".lower()
-        role_bytes = b64.b64encode(role_description.encode("utf-8"))
-        encoded_role = role_bytes.decode("utf-8").replace("=", "")
-        role_name = f"{self.fabric_policy_role_prefix}{encoded_role}"
 
+        role_name = self.__get_role_name__(policy)
         table_path = self.__get_table_mapping__(
             policy.catalog, policy.catalog_schema, policy.table
         )
