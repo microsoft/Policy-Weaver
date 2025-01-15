@@ -3,9 +3,9 @@ from policyweaver.models.common import (
     IamType,
     SourceMap
 )
+
 from pydantic import Field
 from typing import Optional, List
-
 
 class Privilege(CommonBaseModel):
     principal: Optional[str] = Field(alias="principal", default=None)
@@ -64,9 +64,6 @@ class Workspace(BaseObject):
     users: Optional[List[WorkspaceUser]] = Field(alias="users", default=None)
     groups: Optional[List[WorkspaceGroup]] = Field(alias="groups", default=None)
 
-class DatabricksWorkspace(CommonBaseModel):
-    workspace: Optional[Workspace] = Field(alias="workspace", default=None)
-    api_token: Optional[str] = Field(alias="api_token", default=None)
-
 class DatabricksSourceMap(SourceMap):
-    databricks: Optional[DatabricksWorkspace] = Field(alias="databricks", default=None)
+    workspace_url: Optional[str] = Field(alias="workspace_url", default=None)
+

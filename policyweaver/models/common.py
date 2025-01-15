@@ -2,6 +2,11 @@ from typing import Optional, List, Any
 from enum import Enum
 from pydantic import BaseModel, Field, ConfigDict
 
+import os
+import yaml
+
+class PolicyWeaverError(Exception):
+    pass
 
 class CommonBaseModel(BaseModel):
     model_config = ConfigDict(
@@ -100,7 +105,7 @@ class PolicyExport(CommonBaseModel):
 
 
 class FabricConfig(CommonBaseModel):
-    api_token: Optional[str] = Field(alias="api_token", default=None)
+    tenant_id: Optional[str] = Field(alias="tenant_id", default=None)
     workspace_id: Optional[str] = Field(alias="workspace_id", default=None)
     workspace_name: Optional[str] = Field(alias="workspace_name", default=None)
     lakehouse_id: Optional[str] = Field(alias="lakehouse_id", default=None)
@@ -129,3 +134,33 @@ class SourceMap(CommonBaseModel):
     mapped_items: Optional[List[SourceMapItem]] = Field(
         alias="mapped_items", default=None
     )
+
+    _default_paths = ['./settings.yaml']
+
+    @classmethod
+    def from_yaml(cls, path:str=None) -> 'SourceMap':
+        paths = [path] if path else cls._default_paths.default
+            
+        for p in paths:
+            if os.path.exists(p):
+                with open(p, 'r', encoding="utf-8") as f:
+                    data = yaml.safe_load(f)
+                return cls(**data)
+        
+        raise PolicyWeaverError("Policy Sync settings file not found")
+
+    def __save_to_first_writable_path__(self, path:str=None) -> None:
+        paths = [path] if path else self._default_paths
+
+        for p in paths:
+            try:
+                with open(p, 'w', encoding="utf-8") as f:
+                    yaml.safe_dump(self.model_dump(exclude_none=True, exclude_unset=True), f)
+                print(f"Settings saved to {p}")
+                return
+            except IOError:
+                print(f"Unable to write to {p}")
+        raise IOError(f"None of the paths in {paths} are writable.")
+
+    def to_yaml(self, path:str=None) -> None:
+        self.__save_to_first_writable_path__(path)

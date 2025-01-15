@@ -1,15 +1,16 @@
 from policyweaver.support.restapiclient import RestAPIProxy
-
+from policyweaver.auth import ServicePrincipal
 
 class FabricAPI:
-    def __init__(self, workspace_id: str, api_token: str):
+    def __init__(self, workspace_id: str, service_principal: ServicePrincipal):
         self.workspace_id = workspace_id
-        self.token = api_token
+        self.token = service_principal.get_token()
 
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.token}",
         }
+
         self.rest_api_proxy = RestAPIProxy(
             base_url="https://api.fabric.microsoft.com/v1/", headers=headers
         )

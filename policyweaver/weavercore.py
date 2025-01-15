@@ -1,8 +1,10 @@
 from policyweaver.models.common import (
     PolicyWeaverConnectorType,
-    Source,
+    SourceMap,
     PolicyExport,
 )
+from policyweaver.auth import ServicePrincipal
+
 from datetime import datetime
 from typing import Dict
 import os
@@ -10,10 +12,12 @@ import json
 
 
 class PolicyWeaverCore:
-    def __init__(self, type: PolicyWeaverConnectorType):
+    def __init__(self, type: PolicyWeaverConnectorType, config:SourceMap, service_principal:ServicePrincipal):
         self.connector_type = type
+        self.config = config
+        self.service_principal = service_principal
 
-    def map_policy(self, source: Source) -> PolicyExport:
+    def map_policy(self) -> PolicyExport:
         pass
 
     def __write_to_log__(self, type: str, data: Dict):

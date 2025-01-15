@@ -15,6 +15,7 @@ from policyweaver.models.databricksmodel import (
     WorkspaceUser,
     WorkspaceGroup,
     WorkspaceGroupMember,
+    DatabricksSourceMap
 )
 
 from policyweaver.models.common import (
@@ -30,11 +31,15 @@ from policyweaver.models.common import (
     Source,
 )
 from policyweaver.weavercore import PolicyWeaverCore
-
+from policyweaver.auth import ServicePrincipal
 
 class DatabricksAPIClient:
-    def __init__(self, workspace: str, token: str):
-        self.workspace_client = WorkspaceClient(host=workspace, token=token)
+    def __init__(self, workspace: str, service_principal: ServicePrincipal):
+
+        self.workspace_client = WorkspaceClient(host=workspace,
+                                                azure_tenant_id=service_principal.tenant_id,
+                                                azure_client_id=service_principal.client_id,
+                                                azure_client_secret=service_principal.client_secret)
 
     def get_workspace_policy_map(self, source: Source) -> Workspace:
         try:
@@ -202,13 +207,14 @@ class DatabricksAPIClient:
 class DatabricksPolicyWeaver(PolicyWeaverCore):
     dbx_read_permissions = ["SELECT", "ALL_PRIVILEGES"]
 
-    def __init__(self, workspace: str, token: str):
-        super().__init__(PolicyWeaverConnectorType.UNITY_CATALOG)
-        self.workspace = None
-        self.api_client = DatabricksAPIClient(workspace=workspace, token=token)
+    def __init__(self, config:DatabricksSourceMap, service_principal: ServicePrincipal):
+        super().__init__(PolicyWeaverConnectorType.UNITY_CATALOG, config, service_principal)
 
-    def map_policy(self, source: Source) -> PolicyExport:
-        self.workspace = self.api_client.get_workspace_policy_map(source)
+        self.workspace = None
+        self.api_client = DatabricksAPIClient(config.workspace_url, service_principal)
+
+    def map_policy(self) -> PolicyExport:
+        self.workspace = self.api_client.get_workspace_policy_map(self.config.source)
 
         policies = []
 
@@ -254,7 +260,7 @@ class DatabricksPolicyWeaver(PolicyWeaverCore):
 
         self.__write_to_log__(self.connector_type, self.workspace.model_dump())
 
-        return PolicyExport(source=source, type=self.connector_type, policies=policies)
+        return PolicyExport(source=self.config.source, type=self.connector_type, policies=policies)
 
     def __build_policy__(self, catalog, schema, table, table_permissions):
         return Policy(

@@ -1,6 +1,8 @@
 from pydantic import TypeAdapter
 from requests.exceptions import HTTPError
 from typing import List
+
+from policyweaver.auth import ServicePrincipal
 from policyweaver.support.fabricapiclient import FabricAPI
 from policyweaver.support.microsoftgraphclient import MicrosoftGraphClient
 from policyweaver.models.fabricmodel import (
@@ -20,33 +22,27 @@ from policyweaver.models.common import (
     PermissionState,
     IamType,
     SourceMap,
+    PolicyWeaverError
 )
 
 import json
 import re
 
-class PolicyWeaverError(Exception):
-    pass
-
-
 class Weaver:
     fabric_policy_role_prefix = "xxPOLICYWEAVERxx"
 
-    def __init__(self, config: SourceMap):
+    def __init__(self, config: SourceMap, service_principal: ServicePrincipal):
         self.config = config
-
-        self.fabric_api = FabricAPI(
-            workspace_id=config.fabric.workspace_id, api_token=config.fabric.api_token
-        )
-        self.graph_client = MicrosoftGraphClient(
-            tenant=config.service_principal.tenant_id,
-            id=config.service_principal.client_id,
-            secret=config.service_principal.client_secret,
-        )
+        self.service_principal = service_principal
+        self.fabric_api = FabricAPI(config.fabric.workspace_id, service_principal)
+        self.graph_client = MicrosoftGraphClient(service_principal)
 
     async def run(self, policy_export: PolicyExport):
         self.user_map = await self.__get_user_map__(policy_export)
 
+        if not self.config.fabric.tenant_id:
+            self.config.fabric.tenant_id = self.service_principal.tenant_id
+        
         if not self.config.fabric.lakehouse_id:
             self.config.fabric.lakehouse_id = self.fabric_api.get_lakehouse_id(
                 self.config.fabric.lakehouse_name
@@ -55,6 +51,7 @@ class Weaver:
         if not self.config.fabric.workspace_name:
             self.config.fabric.workspace_name = self.fabric_api.get_workspace_name()
 
+        print(f"Applying Fabric Policies to {self.config.fabric.workspace_name}...")
         self.__get_current_access_policy__()
         self.__apply_policies__(policy_export)
 
@@ -141,10 +138,8 @@ class Weaver:
 
         return re.sub(r'[^a-zA-Z0-9]', '', f"xxPOLICYWEAVERxx{role_description}")
     
-    def __build_data_access_policy__(
-        self, policy, permission, access_policy_type
-    ) -> DataAccessPolicy:
-
+    def __build_data_access_policy__(self, policy, permission, access_policy_type) -> DataAccessPolicy:
+        
         role_name = self.__get_role_name__(policy)
 
         table_path = self.__get_table_mapping__(
@@ -174,7 +169,7 @@ class Weaver:
                 entra_members=[
                     EntraMember(
                         object_id=self.user_map[o.id],
-                        tenant_id=self.config.service_principal.tenant_id,
+                        tenant_id=self.config.fabric.tenant_id,
                         object_type=FabricMemberObjectType.USER,
                     )
                     for o in permission.objects
