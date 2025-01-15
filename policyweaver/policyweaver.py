@@ -23,7 +23,7 @@ from policyweaver.models.common import (
 )
 
 import json
-
+import re
 
 class PolicyWeaverError(Exception):
     pass
@@ -101,7 +101,7 @@ class Weaver:
             else:
                 raise e
             
-    def __get_table_mapping__(self, catalog, schema, table) -> tuple():
+    def __get_table_mapping__(self, catalog, schema, table) -> str:
         if not table:
             return None
 
@@ -139,13 +139,14 @@ class Weaver:
         else:
             role_description = policy.catalog.upper()
 
-        return f"xxPOLICYWEAVERxx{role_description}"
+        return re.sub(r'[^a-zA-Z0-9]', '', f"xxPOLICYWEAVERxx{role_description}")
     
     def __build_data_access_policy__(
         self, policy, permission, access_policy_type
     ) -> DataAccessPolicy:
 
         role_name = self.__get_role_name__(policy)
+
         table_path = self.__get_table_mapping__(
             policy.catalog, policy.catalog_schema, policy.table
         )
