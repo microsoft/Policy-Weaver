@@ -1,10 +1,13 @@
 from pydantic import TypeAdapter
 from requests.exceptions import HTTPError
-from typing import List
+from typing import List, Dict
+import json
+import re
 
 from policyweaver.auth import ServicePrincipal
 from policyweaver.support.fabricapiclient import FabricAPI
 from policyweaver.support.microsoftgraphclient import MicrosoftGraphClient
+from policyweaver.sources.databricksclient import DatabricksPolicyWeaver
 from policyweaver.models.fabricmodel import (
     DataAccessPolicy,
     PolicyDecisionRule,
@@ -22,22 +25,42 @@ from policyweaver.models.common import (
     PermissionState,
     IamType,
     SourceMap,
-    PolicyWeaverError
+    PolicyWeaverError,
+    PolicyWeaverConnectorType,
 )
-
-import json
-import re
 
 class Weaver:
     fabric_policy_role_prefix = "xxPOLICYWEAVERxx"
 
-    def __init__(self, config: SourceMap, service_principal: ServicePrincipal):
+    @staticmethod
+    async def run(config: SourceMap) -> None:
+        service_principal = ServicePrincipal(
+            tenant_id=config.service_principal.tenant_id,
+            client_id=config.service_principal.client_id,
+            client_secret=config.service_principal.client_secret
+        )
+    
+        print("Policy Weaver Sync started...")
+        match config.type:
+            case PolicyWeaverConnectorType.UNITY_CATALOG:
+                src = DatabricksPolicyWeaver(config, service_principal)
+            case _:
+                pass
+        
+        print(f"Running Policy Export for {config.type}: {config.source.name}...")
+        policy_export = src.map_policy()
+        
+        weaver = Weaver(config, service_principal)
+        await weaver.apply(policy_export)
+        print("Policy Weaver Sync complete!")
+
+    def __init__(self, config: SourceMap, service_principal: ServicePrincipal) -> None:
         self.config = config
         self.service_principal = service_principal
         self.fabric_api = FabricAPI(config.fabric.workspace_id, service_principal)
         self.graph_client = MicrosoftGraphClient(service_principal)
 
-    async def run(self, policy_export: PolicyExport):
+    async def apply(self, policy_export: PolicyExport) -> None:
         self.user_map = await self.__get_user_map__(policy_export)
 
         if not self.config.fabric.tenant_id:
@@ -55,7 +78,7 @@ class Weaver:
         self.__get_current_access_policy__()
         self.__apply_policies__(policy_export)
 
-    def __apply_policies__(self, policy_export: PolicyExport):
+    def __apply_policies__(self, policy_export: PolicyExport) -> None:
         access_policies = []
 
         for policy in policy_export.policies:
@@ -87,7 +110,7 @@ class Weaver:
 
         print(f"Access Polices Updated: {len(access_policies)}")
 
-    def __get_current_access_policy__(self):
+    def __get_current_access_policy__(self) -> None:
         try:
             result = self.fabric_api.list_data_access_policy(self.config.fabric.lakehouse_id)
             type_adapter = TypeAdapter(List[DataAccessPolicy])
@@ -117,7 +140,7 @@ class Weaver:
 
         return table_path
 
-    async def __get_user_map__(self, policy_export: PolicyExport):
+    async def __get_user_map__(self, policy_export: PolicyExport) -> Dict[str, str]:
         user_map = dict()
 
         for policy in policy_export.policies:
