@@ -9,9 +9,8 @@ import os
 
 load_dotenv()
 
-
 workspace_id=os.getenv('FABRIC_WORKSPACE_ID')
-print(workspace_id)
+print(f"Workspace: {workspace_id}")
 
 def create_config():
     from policyweaver.models.common import (
