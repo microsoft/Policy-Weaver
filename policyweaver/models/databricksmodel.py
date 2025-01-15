@@ -66,3 +66,4 @@ class Workspace(BaseObject):
 
 class DatabricksSourceMap(SourceMap):
     workspace_url: Optional[str] = Field(alias="workspace_url", default=None)
+
