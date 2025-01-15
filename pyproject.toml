@@ -9,4 +9,5 @@ dependencies = [
     "databricks-sdk>=0.40.0",
     "msgraph-sdk>=1.16.0",
     "pydantic>=2.10.5",
+    "python-dotenv>=1.0.1",
 ]
