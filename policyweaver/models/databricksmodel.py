@@ -1,7 +1,11 @@
-from policyweaver.models.common import CommonBaseModel, IamType
+from policyweaver.models.common import (
+    CommonBaseModel, 
+    IamType,
+    SourceMap
+)
+
 from pydantic import Field
 from typing import Optional, List
-
 
 class Privilege(CommonBaseModel):
     principal: Optional[str] = Field(alias="principal", default=None)
@@ -59,3 +63,6 @@ class Workspace(BaseObject):
     catalog: Optional[Catalog] = Field(alias="catalog", default=None)
     users: Optional[List[WorkspaceUser]] = Field(alias="users", default=None)
     groups: Optional[List[WorkspaceGroup]] = Field(alias="groups", default=None)
+
+class DatabricksSourceMap(SourceMap):
+    workspace_url: Optional[str] = Field(alias="workspace_url", default=None)

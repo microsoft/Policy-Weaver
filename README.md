@@ -1,14 +1,35 @@
-# Project
+# Policy Weaver 
 
-> This repo has been populated by an initial template to help get you started. Please
-> make sure to update the content to build a great experience for community-building.
+## Overview
 
-As the maintainer of this project, please make a few updates:
+Microsoft Fabric introduced mirroring as a managed, friction-free way of synchronizing data from a diverse set of data & analytic platforms to Fabric via OneLake. 
 
-- Improving this README.MD file to provide a great experience
-- Updating SUPPORT.MD with content about this project's support experience
-- Understanding the security reporting process in SECURITY.MD
-- Remove this section from the README
+While mirroring provides all the capabilities required to keep data in sync, data access policies defined by the source system are out-of-scope and must be handled manually. 
+
+Manually handling of these data access policies presents a challenge for ensuring consistent security across the data estate while reducing risks or vulnerabilities associated with out-of-sync security policies.
+
+The Policy Weaver project addresses this by automating the synchronzation of data access policies from source to Fabric in a transparent and auditable mmaner.
+
+Designed as a pluggable framework, Policy Weaver provides connectors that handle the export of access policies from a configured source before applying them to the mirror data within Fabric.
+
+Policy Weaver will initially supports the following sources:
+- [Databricks Unity Catalog]()
+- BigQuery
+- Snowflake
+
+<mark><b>Note:</b>Policy Weaver is limited to read-only policies. Support for row filter and column-masking policies will be added in a future version.</mark>
+
+This project is made available as a Python library and can be run from anywhere with a Python runtime. 
+
+For more information on getting started, please see the [Getting Started]() documentation. 
+
+## OneLake Data Access Roles Overview
+
+Policy Weaver uses OneLake Data Access Roles to coalesce source system security policies into access policies that apply uniformly across the Fabric platform. With Data Access Roles, security policies are defined as  role-based access controls (RBAC) on the data stored in OneLake.
+
+When data is accessed from anywhere within Fabric, the defined RBAC policies are enforced. This means that data whether is accessed from a Notebook, SQL Endpoint or Semantic model the security policies defined by the source system are enforced consistently as expected.
+
+For more details on OneLake Data Access policies, please see official Microsoft documentation: [OneLake Security Overview](https://learn.microsoft.com/en-us/fabric/onelake/security/get-started-security) 
 
 ## Contributing
 

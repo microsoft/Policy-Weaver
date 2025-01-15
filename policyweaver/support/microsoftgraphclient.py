@@ -4,15 +4,14 @@ from azure.identity import ClientSecretCredential
 from msgraph.graph_service_client import GraphServiceClient
 from kiota_abstractions.api_error import APIError
 
+from policyweaver.auth import ServicePrincipal
 
 class MicrosoftGraphClient:
-    def __init__(self, tenant: str, id: str, secret: str):
+    def __init__(self, service_principal: ServicePrincipal):
         os.environ["SSL_CERT_FILE"] = certifi.where()
 
         self.graph_client = GraphServiceClient(
-            credentials=ClientSecretCredential(
-                tenant_id=tenant, client_id=id, client_secret=secret
-            ),
+            credentials=service_principal.credential,
             scopes=["https://graph.microsoft.com/.default"],
         )
 
