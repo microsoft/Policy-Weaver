@@ -12,7 +12,7 @@ class FabricAPI:
         }
 
         self.rest_api_proxy = RestAPIProxy(
-            base_url="https://api.fabric.microsoft.com/v1/", headers=headers
+            base_url="https://api.fabric.microsoft.com/v1", headers=headers
         )
 
     def __get_workspace_uri__(self, uri) -> str:
@@ -34,6 +34,10 @@ class FabricAPI:
         ).json()
         return response["displayName"]
 
+    def get_lakehouse(self, lakehouse_id: str) -> str:
+        uri = f"lakehouses/{lakehouse_id}/"        
+        return self.rest_api_proxy.get(endpoint=self.__get_workspace_uri__(uri)).json()
+        
     def get_lakehouse_id(self, lakehouse_name: str) -> str:
         uri = "lakehouses"
         response = self.rest_api_proxy.get(
@@ -49,3 +53,7 @@ class FabricAPI:
             return o[0]
 
         return None
+    
+    def has_schema(self, lakehouse_id:str):
+        result = self.get_lakehouse(lakehouse_id)
+        return "defaultSchema" in result["properties"]
