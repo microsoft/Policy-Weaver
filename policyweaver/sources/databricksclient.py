@@ -1,35 +1,11 @@
-import re
 from databricks.sdk import WorkspaceClient
-from typing import List
+from typing import List, Tuple, Dict
 from databricks.sdk.errors import NotFound
 from databricks.sdk.service.catalog import SecurableType
 
-from policyweaver.models.databricksmodel import (
-    Workspace,
-    Catalog,
-    Schema,
-    Table,
-    Privilege,
-    Function,
-    FunctionMap,
-    WorkspaceUser,
-    WorkspaceGroup,
-    WorkspaceGroupMember,
-    DatabricksSourceMap
-)
+from policyweaver.models.databricksmodel import *
+from policyweaver.models.common import *
 
-from policyweaver.models.common import (
-    IamType,
-    Permission,
-    PermissionObject,
-    PermissionState,
-    PermissionType,
-    PolicyExport,
-    Policy,
-    PolicyWeaverConnectorType,
-    SourceSchema,
-    Source,
-)
 from policyweaver.weavercore import PolicyWeaverCore
 from policyweaver.auth import ServicePrincipal
 
@@ -81,9 +57,7 @@ class DatabricksAPIClient:
                     WorkspaceGroupMember(
                         id=m.value,
                         name=m.display,
-                        type=IamType.USER
-                        if m.ref.find("Users") > -1
-                        else IamType.GROUP,
+                        type=IamType.USER if m.ref.find("Users") > -1 else IamType.GROUP,
                     )
                     for m in g.members
                 ],
@@ -203,66 +177,151 @@ class DatabricksAPIClient:
             if f.full_name in inscope
         ]
 
-
 class DatabricksPolicyWeaver(PolicyWeaverCore):
+    dbx_account_users_group = "account users"
     dbx_read_permissions = ["SELECT", "ALL_PRIVILEGES"]
-
-    def __init__(self, config:DatabricksSourceMap, service_principal: ServicePrincipal):
-        super().__init__(PolicyWeaverConnectorType.UNITY_CATALOG, config, service_principal)
-
-        self.workspace = None
-        self.api_client = DatabricksAPIClient(config.workspace_url, service_principal)
+    dbx_catalog_read_prereqs = ["USE_CATALOG", "ALL_PRIVILEGES"]
+    dbx_schema_read_prereqs = ["USE_SCHEMA", "ALL_PRIVILEGES"]
 
     def map_policy(self) -> PolicyExport:
         self.workspace = self.api_client.get_workspace_policy_map(self.config.source)
-
-        policies = []
-
-        catalog_permissions = self.__get_read_permissions__(
-            self.workspace.catalog.privileges
-        )
-
-        if catalog_permissions:
-            policies.append(
-                self.__build_policy__(
-                    catalog=self.workspace.catalog.name,
-                    schema=None,
-                    table=None,
-                    table_permissions=catalog_permissions,
-                )
-            )
+        self.__collect_privileges__(self.workspace.catalog.privileges, self.workspace.catalog.name)        
 
         for schema in self.workspace.catalog.schemas:
-            schema_permissions = self.__get_read_permissions__(schema.privileges)
-
-            if schema_permissions:
-                policies.append(
-                    self.__build_policy__(
-                        catalog=self.workspace.catalog.name,
-                        schema=schema.name,
-                        table=None,
-                        table_permissions=schema_permissions,
-                    )
-                )
+            self.__collect_privileges__(schema.privileges, self.workspace.catalog.name, schema.name)            
 
             for tbl in schema.tables:
-                tbl_permissions = self.__get_read_permissions__(tbl.privileges)
+                self.__collect_privileges__(tbl.privileges, self.workspace.catalog.name, schema.name, tbl.name)                
 
-                if tbl_permissions:
-                    policies.append(
-                        self.__build_policy__(
-                            catalog=self.workspace.catalog.name,
-                            schema=schema.name,
-                            table=tbl.name,
-                            table_permissions=tbl_permissions,
-                        )
-                    )
+        self.__apply_access_model__()
 
-        self.__write_to_log__(self.connector_type, self.workspace.model_dump())
+        policies = self.__build_export_policies__()
+
+        #self.__write_to_log__(self.connector_type, self.workspace.model_dump())
 
         return PolicyExport(source=self.config.source, type=self.connector_type, policies=policies)
+    
+    def __init__(self, config:DatabricksSourceMap, service_principal: ServicePrincipal) -> None:
+        super().__init__(PolicyWeaverConnectorType.UNITY_CATALOG, config, service_principal)
 
-    def __build_policy__(self, catalog, schema, table, table_permissions):
+        self.workspace = None
+        self.snapshot = {}
+        self.api_client = DatabricksAPIClient(config.workspace_url, service_principal)
+
+    def __get_three_part_key__(self, catalog:str, schema:str=None, table:str=None) -> str:
+        schema = f".{schema}" if schema else ""
+        table = f".{table}" if table else ""
+
+        return f"{catalog}{schema}{table}"
+    
+    def __collect_privileges__(self, privileges:List[Privilege], catalog:str, schema:str=None, table:str=None) -> None:
+        for privilege in privileges:
+            dependency_map = DependencyMap(
+                catalog=catalog,
+                schema=schema,
+                table=table,
+                )
+
+            if privilege.privileges:
+                for p in privilege.privileges:
+                    dependency_map.privileges.append(p)
+                    
+                    if privilege.principal not in self.snapshot:
+                        self.snapshot[privilege.principal] = PrivilegeSnapshot(
+                                principal=privilege.principal,
+                                type=IamType.USER if Utils.is_email(privilege.principal) else IamType.GROUP,
+                                maps={dependency_map.key: dependency_map}
+                            )
+                    else:
+                        if dependency_map.key not in self.snapshot[privilege.principal].maps:
+                            self.snapshot[privilege.principal].maps[dependency_map.key] = dependency_map
+                        else:
+                            if p not in self.snapshot[privilege.principal].maps[dependency_map.key].privileges:
+                                self.snapshot[privilege.principal].maps[dependency_map.key].privileges.append(p)
+    
+    def __search_privileges__(self, snapshot:PrivilegeSnapshot, key:str, prereqs:List[str]) -> bool:
+        if key in snapshot.maps:
+            if [p for p in snapshot.maps[key].privileges if p in prereqs]:
+                return True
+        
+        return False
+    
+    def __apply_access_model__(self) -> None:
+        for self.workspace_user in self.workspace.users:
+            if self.workspace_user.email not in self.snapshot:
+                self.snapshot[self.workspace_user.email] = PrivilegeSnapshot(
+                    principal=self.workspace_user.email,
+                    type=IamType.USER,
+                    maps={}
+                )
+        
+        for self.workspace_group in self.workspace.groups:
+            if self.workspace_group.name not in self.snapshot:
+                self.snapshot[self.workspace_group.name] = PrivilegeSnapshot(
+                    principal=self.workspace_group.name,
+                    type=IamType.GROUP,
+                    maps={}
+                )
+
+        for principal in self.snapshot:
+            self.snapshot[principal] = self.__apply_privilege_inheritence__(self.snapshot[principal])
+
+            object_id = self.workspace.lookup_object_id(principal, self.snapshot[principal].type)
+            
+            if object_id:
+                self.snapshot[principal].group_membership = self.workspace.get_user_groups(object_id)
+            
+            self.snapshot[principal].group_membership.append(self.dbx_account_users_group)
+
+    def __apply_privilege_inheritence__(self, privilege_snapshot:PrivilegeSnapshot) -> PrivilegeSnapshot:
+        for map_key in privilege_snapshot.maps:
+            map = privilege_snapshot.maps[map_key]
+            catalog_key = None if not map.catalog else self.__get_three_part_key__(map.catalog)
+            schema_key = None if not map.catalog_schema else self.__get_three_part_key__(map.catalog, map.catalog_schema)
+
+            if catalog_key in privilege_snapshot.maps:
+                privilege_snapshot.maps[map_key].catalog_prerequisites = \
+                    self.__search_privileges__(privilege_snapshot, catalog_key, self.dbx_catalog_read_prereqs)
+                
+            if schema_key and schema_key in privilege_snapshot.maps:
+                privilege_snapshot.maps[map_key].schema_prerequisites = \
+                    self.__search_privileges__(privilege_snapshot, schema_key, self.dbx_schema_read_prereqs)
+            else:
+                privilege_snapshot.maps[map_key].schema_prerequisites = \
+                    self.__search_privileges__(privilege_snapshot, map_key, self.dbx_schema_read_prereqs)
+                
+            privilege_snapshot.maps[map_key].read_permissions = \
+                self.__search_privileges__(privilege_snapshot, map_key, self.dbx_read_permissions)
+            
+        return privilege_snapshot
+
+    def __build_export_policies__(self) -> List[Policy]:
+        policies = []
+
+        if self.workspace.catalog.privileges:
+            policies.append(
+                self.__build_policy__(
+                    self.__get_read_permissions__(self.workspace.catalog.privileges, self.workspace.catalog.name),
+                    self.workspace.catalog.name))
+        
+        for schema in self.workspace.catalog.schemas:
+            if schema.privileges:
+                policies.append(
+                    self.__build_policy__(
+                        self.__get_read_permissions__(schema.privileges, self.workspace.catalog.name, schema.name),
+                        self.workspace.catalog.name, schema.name))
+
+            for tbl in schema.tables:
+                if tbl.privileges:
+                    policies.append(
+                        self.__build_policy__(
+                            self.__get_read_permissions__(tbl.privileges, self.workspace.catalog.name, schema.name, tbl.name),
+                            self.workspace.catalog.name, schema.name, tbl.name))
+        
+
+        return policies
+
+    def __build_policy__(self, table_permissions, catalog, schema=None, table=None) -> Policy:
         return Policy(
             catalog=catalog,
             catalog_schema=schema,
@@ -279,64 +338,89 @@ class DatabricksPolicyWeaver(PolicyWeaverCore):
             ],
         )
 
-    def __get_read_permissions__(self, privileges):
+    def __get_key_set__(self, key) -> List[str]:
+        keys = key.split(".")
+        key_set = []
+
+        for i in range(0, len(keys)):
+            key_set.append(".".join(keys[0:i+1]))
+
+        return key_set
+    
+    def __get_user_key_permissions__(self, principal:str, key:str) -> Tuple[bool, bool, bool]:
+        if key in self.snapshot[principal].maps:
+            catalog_prereq = self.snapshot[principal].maps[key].catalog_prerequisites
+            schema_prereq = self.snapshot[principal].maps[key].schema_prerequisites
+            read_permission = self.snapshot[principal].maps[key].read_permissions
+
+            self.logger.debug(f"Evaluate - Principal ({principal}) Key ({key}) - {catalog_prereq}|{schema_prereq}|{read_permission}")
+            
+            return catalog_prereq, schema_prereq, read_permission
+        else:
+            return False, False, False 
+
+    def __coalesce_user_group_permissions__(self, principal:str, key:str) -> Tuple[bool, bool, bool]:
+        catalog_prereq = False
+        schema_prereq = False
+        read_permission = False
+
+        for member_group in self.snapshot[principal].group_membership:
+            key_set = self.__get_key_set__(key)
+            for k in key_set:
+                c, s, r = self.__get_user_key_permissions__(member_group, k)                
+
+                catalog_prereq = catalog_prereq if catalog_prereq else c
+                schema_prereq = schema_prereq if schema_prereq else s
+                read_permission = read_permission if read_permission else r
+                self.logger.debug(f"Evaluate - Principal ({principal}) Group ({member_group}) Key ({k}) - {catalog_prereq}|{schema_prereq}|{read_permission}")
+
+                if catalog_prereq and schema_prereq and read_permission:
+                    break
+            
+            if catalog_prereq and schema_prereq and read_permission:
+                    break
+        
+        return catalog_prereq, schema_prereq, read_permission
+
+    def __has_read_permissions__(self, principal:str, key:str) -> bool:
+        catalog_prereq, schema_prereq, read_permission = self.__get_user_key_permissions__(principal, key)
+
+        if not (catalog_prereq and schema_prereq and read_permission):
+            group_catalog_prereq, _group_schema_prereq, group_read_permission = self.__coalesce_user_group_permissions__(principal, key)
+
+            catalog_prereq = catalog_prereq if catalog_prereq else group_catalog_prereq
+            schema_prereq = schema_prereq if schema_prereq else _group_schema_prereq
+            read_permission = read_permission if read_permission else group_read_permission
+
+        return catalog_prereq and schema_prereq and read_permission
+    
+    def __is_in_group__(self, principal:str, group:str) -> bool:
+        if principal in self.snapshot:            
+            if group in self.snapshot[principal].group_membership:
+                return True
+
+        return False
+    
+    def __get_read_permissions__(self, privileges:List[Privilege], catalog:str, schema:str=None, table:str=None) -> List[str]:
         user_permissions = []
+
+        key = self.__get_three_part_key__(catalog, schema, table)
 
         for r in privileges:
             if any(p in self.dbx_read_permissions for p in r.privileges):
-                if self.__is_email__(r.principal):
-                    user_permissions.append(r.principal)
+                if self.__has_read_permissions__(r.principal, key):
+                    if Utils.is_email(r.principal):                    
+                        if not r.principal in user_permissions:
+                            self.logger.debug(f"Principal ({r.principal}) direct add for {key}...")
+                            user_permissions.append(r.principal)
+                    else:
+                        for user in self.workspace.users:
+                            self.logger.debug(f"Membership Check - User ({user.email}) | Group({r.principal}) for Key({key})")
+                            if self.__is_in_group__(user.email, r.principal):
+                                if not user.email in user_permissions:
+                                    self.logger.debug(f"Principal ({user.email}) added by {r.principal} group for {key}...")
+                                    user_permissions.append(user.email)
                 else:
-                    user_permissions = self.__extend_with_dedup__(
-                        user_permissions, self.__flatten_group__(r.principal)
-                    )
+                    self.logger.debug(f"Principal ({r.principal}) does not have read permissions for {key}...")
 
         return user_permissions
-
-    def __is_email__(self, email):
-        pattern = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
-        return re.match(pattern, email)
-
-    def __lookup_user__(self, id: str) -> WorkspaceUser:
-        user = list(filter(lambda u: u.id == id, self.workspace.users))
-
-        if not user:
-            return None
-
-        return user[0]
-
-    def __lookup_group_by_name__(self, name: str) -> WorkspaceUser:
-        group = list(filter(lambda g: g.name == name, self.workspace.groups))
-
-        if not group:
-            return None
-
-        return group[0]
-
-    def __extend_with_dedup__(self, src, new):
-        if not src or len(src) == 0:
-            return new
-
-        if not new or len(new) == 0:
-            return src
-
-        s = set(src)
-        s.update(new)
-
-        return list(s)
-
-    def __flatten_group__(self, name: str) -> List[str]:
-        group = self.__lookup_group_by_name__(name)
-        group_users = []
-
-        if group:
-            for m in group.members:
-                if m.type == IamType.USER:
-                    u = self.__lookup_user__(m.id)
-                    group_users.append(u.email)
-                elif m.type == IamType.GROUP:
-                    group_users = self.__extend_with_dedup__(
-                        group_users, self.__flatten_group__(m.name)
-                    )
-
-        return group_users

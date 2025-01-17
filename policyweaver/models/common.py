@@ -3,6 +3,7 @@ from enum import Enum
 from pydantic import BaseModel, Field, ConfigDict
 
 import os
+import re
 import yaml
 
 class PolicyWeaverError(Exception):
@@ -110,7 +111,7 @@ class FabricConfig(CommonBaseModel):
     workspace_name: Optional[str] = Field(alias="workspace_name", default=None)
     lakehouse_id: Optional[str] = Field(alias="lakehouse_id", default=None)
     lakehouse_name: Optional[str] = Field(alias="lakehouse_name", default=None)
-
+    use_lakehouse_schema: Optional[bool] = Field(alias="use_lakehouse_schema", default=None)
 
 class ServicePrincipalConfig(CommonBaseModel):
     tenant_id: Optional[str] = Field(alias="tenant_id", default=None)
@@ -123,8 +124,9 @@ class SourceMapItem(CatalogItem):
         alias="lakehouse_table_name", default=None
     )
 
-
 class SourceMap(CommonBaseModel):
+    application_name: Optional[str] = Field(alias="application_name", default="POLICY_WEAVER")
+    correlation_id: Optional[str] = Field(alias="correlation_id", default=None)
     type: Optional[PolicyWeaverConnectorType] = Field(alias="type", default=None)
     source: Optional[Source] = Field(alias="source", default=None)
     fabric: Optional[FabricConfig] = Field(alias="fabric", default=None)
@@ -164,3 +166,9 @@ class SourceMap(CommonBaseModel):
 
     def to_yaml(self, path:str=None) -> None:
         self.__save_to_first_writable_path__(path)
+
+class Utils:
+    @staticmethod
+    def is_email(email):
+        pattern = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
+        return re.match(pattern, email)

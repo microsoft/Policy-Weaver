@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import Dict
 import os
 import json
+import logging
 
 
 class PolicyWeaverCore:
@@ -16,12 +17,13 @@ class PolicyWeaverCore:
         self.connector_type = type
         self.config = config
         self.service_principal = service_principal
+        self.logger = logging.getLogger(config.application_name)
 
     def map_policy(self) -> PolicyExport:
         pass
 
     def __write_to_log__(self, type: str, data: Dict):
-        directory = "/lakehouse/default/Files/audit"
+        directory = "."
         log_directory = f"{directory}/{type.lower()}_snapshot"
 
         os.makedirs(log_directory, exist_ok=True)
@@ -29,4 +31,4 @@ class PolicyWeaverCore:
         log_file = f"{log_directory}/log_{datetime.now().strftime('%Y%m%d%H%M%S')}.json"
 
         with open(log_file, "w") as file:
-            json.dump(data, file)
+            json.dump(data, file, indent=4)

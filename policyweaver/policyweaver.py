@@ -3,8 +3,10 @@ from requests.exceptions import HTTPError
 from typing import List, Dict
 import json
 import re
+import logging
 
 from policyweaver.auth import ServicePrincipal
+from policyweaver.conf import Configuration
 from policyweaver.support.fabricapiclient import FabricAPI
 from policyweaver.support.microsoftgraphclient import MicrosoftGraphClient
 from policyweaver.sources.databricksclient import DatabricksPolicyWeaver
@@ -31,31 +33,37 @@ from policyweaver.models.common import (
 
 class Weaver:
     fabric_policy_role_prefix = "xxPOLICYWEAVERxx"
-
+    
     @staticmethod
     async def run(config: SourceMap) -> None:
+        Configuration.configure_environment(config)
+        logger = logging.getLogger(config.application_name)
+
         service_principal = ServicePrincipal(
             tenant_id=config.service_principal.tenant_id,
             client_id=config.service_principal.client_id,
             client_secret=config.service_principal.client_secret
         )
     
-        print("Policy Weaver Sync started...")
+        logger.info("Policy Weaver Sync started...")
         match config.type:
             case PolicyWeaverConnectorType.UNITY_CATALOG:
                 src = DatabricksPolicyWeaver(config, service_principal)
             case _:
                 pass
         
-        print(f"Running Policy Export for {config.type}: {config.source.name}...")
+        logger.info(f"Running Policy Export for {config.type}: {config.source.name}...")
         policy_export = src.map_policy()
         
+        #self.logger.debug(policy_export.model_dump_json(indent=4))
+
         weaver = Weaver(config, service_principal)
         await weaver.apply(policy_export)
-        print("Policy Weaver Sync complete!")
+        logger.info("Policy Weaver Sync complete!")
 
     def __init__(self, config: SourceMap, service_principal: ServicePrincipal) -> None:
         self.config = config
+        self.logger = logging.getLogger(config.application_name)
         self.service_principal = service_principal
         self.fabric_api = FabricAPI(config.fabric.workspace_id, service_principal)
         self.graph_client = MicrosoftGraphClient(service_principal)
@@ -71,10 +79,15 @@ class Weaver:
                 self.config.fabric.lakehouse_name
             )
 
+        if not self.config.fabric.use_lakehouse_schema:
+            self.config.fabric.use_lakehouse_schema = self.fabric_api.has_schema(
+                self.config.fabric.lakehouse_id
+            )
+
         if not self.config.fabric.workspace_name:
             self.config.fabric.workspace_name = self.fabric_api.get_workspace_name()
 
-        print(f"Applying Fabric Policies to {self.config.fabric.workspace_name}...")
+        self.logger.info(f"Applying Fabric Policies to {self.config.fabric.workspace_name}...")
         self.__get_current_access_policy__()
         self.__apply_policies__(policy_export)
 
@@ -90,7 +103,9 @@ class Weaver:
                     access_policy = self.__build_data_access_policy__(
                         policy, permission, FabricPolicyAccessType.READ
                     )
-                    access_policies.append(access_policy)
+
+                    if len(access_policy.members.entra_members) > 0:
+                        access_policies.append(access_policy)
 
         # Append policies not managed by PolicyWeaver
         if self.current_fabric_policies:
@@ -104,11 +119,13 @@ class Weaver:
             ]
         }
 
+        #self.logger.debug(json.dumps(dap_request))
+
         self.fabric_api.put_data_access_policy(
             self.config.fabric.lakehouse_id, json.dumps(dap_request)
         )
 
-        print(f"Access Polices Updated: {len(access_policies)}")
+        self.logger.info(f"Access Polices Updated: {len(access_policies)}")
 
     def __get_current_access_policy__(self) -> None:
         try:
@@ -117,7 +134,7 @@ class Weaver:
             self.current_fabric_policies = type_adapter.validate_python(result["value"])
         except HTTPError as e:
             if e.response.status_code == 400:
-                PolicyWeaverError("ERROR: Please ensure Data Access Policies are enabled on the lakehouse.")
+                raise PolicyWeaverError("ERROR: Please ensure Data Access Policies are enabled on the lakehouse.")
             else:
                 raise e
             
@@ -133,10 +150,9 @@ class Weaver:
             and tbl.table == table
         ]
 
-        if matched_tbls:
-            table_path = f"Tables/{matched_tbls[0].lakehouse_table_name}"
-        else:
-            table_path = f"Tables/{table}"
+        table_nm = table if not matched_tbls else matched_tbls[0].lakehouse_table_name
+        table_path = f"Tables/{table_nm}" if not self.config.fabric.use_lakehouse_schema else \
+            f"Tables/{schema}/{table_nm}"         
 
         return table_path
 
