@@ -1,4 +1,5 @@
 azure-identity>=1.19.0
+azure-storage-file-datalake>=12.18.1
 databricks-sdk>=0.40.0
 msgraph-sdk>=1.16.0
 pydantic>=2.10.5
