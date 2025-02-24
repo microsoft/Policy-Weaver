@@ -26,6 +26,7 @@ Requires-Python: >=3.11.8
 Description-Content-Type: text/markdown
 License-File: LICENSE
 Requires-Dist: azure-identity>=1.19.0
+Requires-Dist: azure-storage-file-datalake>=12.18.1
 Requires-Dist: databricks-sdk>=0.40.0
 Requires-Dist: msgraph-sdk>=1.16.0
 Requires-Dist: pydantic>=2.10.5
