@@ -31,6 +31,41 @@ When data is accessed from anywhere within Fabric, the defined RBAC policies are
 
 For more details on OneLake Data Access policies, please see official Microsoft documentation: [OneLake Security Overview](https://learn.microsoft.com/en-us/fabric/onelake/security/get-started-security) 
 
+## Quickstart
+
+PolicyWeaver is available on [PyPi](https://pypi.org/project/policy-weaver/) and can be installed via `pip install policy-weaver`.
+
+Before we start using PolicyWeaver, it is necessary to create a configuration file to map the source system and the target Fabric environment. This includes service principal we will use to authenticate to both systems, and schemas/tables to include.
+
+```yml
+fabric:
+  lakehouse_name: mirrored_schemas
+  workspace_id: <your_Fabric_workspace_id>
+service_principal:
+  client_id: <sp_client_id>
+  client_secret: <sp_client_secret>
+  tenant_id: <sp_tenant_id>
+source:
+  name: <source_warehouse_catalog>
+  schemas:
+  - name: <schema_1>
+    tables:
+    - <table_1>
+type: UNITY_CATALOG
+workspace_url: <databricks_workspace_url>
+```
+
+With PolicyWeaver installed and the configuration file ready, we start by reading the configuration file and running the Weaver.
+
+```python
+from policyweaver.policyweaver import Weaver
+from policyweaver.models.databricksmodel import DatabricksSourceMap
+
+config = DatabricksSourceMap.from_yaml('path_to_yaml_config_file')
+
+await Weaver.run(config)
+```
+
 ## Contributing
 
 This project welcomes contributions and suggestions.  Most contributions require you to agree to a
