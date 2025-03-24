@@ -197,7 +197,7 @@ class DatabricksPolicyWeaver(PolicyWeaverCore):
 
         policies = self.__build_export_policies__()
 
-        #self.__write_to_log__(self.connector_type, self.workspace.model_dump())
+        self.__write_to_log__(self.connector_type, self.workspace.model_dump())
 
         return PolicyExport(source=self.config.source, type=self.connector_type, policies=policies)
     
@@ -348,7 +348,7 @@ class DatabricksPolicyWeaver(PolicyWeaverCore):
         return key_set
     
     def __get_user_key_permissions__(self, principal:str, key:str) -> Tuple[bool, bool, bool]:
-        if key in self.snapshot[principal].maps:
+        if principal in self.snapshot and key in self.snapshot[principal].maps:
             catalog_prereq = self.snapshot[principal].maps[key].catalog_prerequisites
             schema_prereq = self.snapshot[principal].maps[key].schema_prerequisites
             read_permission = self.snapshot[principal].maps[key].read_permissions
