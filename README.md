@@ -11,11 +11,13 @@ While Fabric Mirroring provides all the capabilities required to automatically k
 Designed as a pluggable framework, **Policy Weaver** provides connectors that handle the export of access policies from a configured source before applying them to the mirror data within Fabric.
 
 Policy Weaver will initially supports the following sources:
-- [Databricks Unity Catalog]()
+- [Azure Databricks Unity Catalog]()
 - BigQuery
 - Snowflake
 
-<mark><b>Note:</b> Policy Weaver is limited to read-only policies for now. Support for row filter and column-masking policies will be added in a future version.</mark>
+
+> <b>Note:</b> Policy Weaver is limited to read-only policies for now. Support 
+> for row filter and column-masking policies will be added in a future version.
 
 
 For more information on prerequisites and instructions on getting started, please see the [Getting Started]() documentation. 
