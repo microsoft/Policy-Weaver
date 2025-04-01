@@ -17,7 +17,8 @@ class MicrosoftGraphClient:
 
     async def get_user_by_email(self, email: str) -> str:
         try:
-            return await self.graph_client.users.by_user_id(email).get()
+            u = await self.graph_client.users.by_user_id(email).get()
+            return u
         except APIError:
             return None
 

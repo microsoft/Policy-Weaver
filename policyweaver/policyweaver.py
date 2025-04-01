@@ -142,15 +142,16 @@ class Weaver:
         if not table:
             return None
 
-        matched_tbls = [
-            tbl
-            for tbl in self.config.mapped_items
-            if tbl.catalog == catalog
-            and tbl.catalog_schema == schema
-            and tbl.table == table
-        ]
+        if self.config.mapped_items:
+            matched_tbl = next(
+                (tbl for tbl in self.config.mapped_items
+                    if tbl.catalog == catalog and tbl.catalog_schema == schema and tbl.table == table),
+                None
+            )
+        else:
+            matched_tbl = None
 
-        table_nm = table if not matched_tbls else matched_tbls[0].lakehouse_table_name
+        table_nm = table if not matched_tbl else matched_tbl.lakehouse_table_name
         table_path = f"Tables/{table_nm}" if not self.config.fabric.use_lakehouse_schema else \
             f"Tables/{schema}/{table_nm}"         
 
