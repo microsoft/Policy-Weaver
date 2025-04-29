@@ -2,7 +2,7 @@
 
 PolicyWeaver is available on [PyPi](https://pypi.org/project/policy-weaver/) and can be installed via `pip install policy-weaver`.
 
-### Create an Microsoft Etra Application and Service Principal account
+### Create a Microsoft Entra Application and Service Principal account
 Before we start using PolicyWeaver, it is necessary to create an Entra Application in Azure for identity management. When you register a new application in Microsoft Entra ID, a service principal is automatically created for the app registration and it is the app's identity in the Microsoft Entra tenant. You can restrict access to resources like Azure Databricks and Fabric by the roles that you assign to the service principal. Follow the steps [here](https://learn.microsoft.com/en-us/entra/identity-platform/howto-create-service-principal-portal) to register an application in Microsoft Entra ID and create a service principal account. 
 
 
@@ -20,9 +20,6 @@ Before we start using PolicyWeaver, it is necessary to create an Entra Applicati
 ### Create a Mirrored Azure Databricks Catalog item in Microsoft Fabric
 To access Azure Databricks tables in Microsoft Fabric, a new item in Fabric called [Mirrored Azure Databricks Catalog](https://learn.microsoft.com/en-us/fabric/database/mirrored-database/azure-databricks) which is currently in public preview, comes in handy. The metastore of Azure Databricks gets replicated in Fabric, while the delta parquet tables are being virtualized (shortcut) from Azure Databricks into Fabric. You can find the tutorial how to create the Mirroed Azure Databricks Catalog item in Fabric and how to select tables [here](https://learn.microsoft.com/en-us/fabric/database/mirrored-database/azure-databricks-tutorial#create-a-mirrored-database-from-azure-databricks). Have in mind, that you can only select schemas and tables that you have access to.
 
-
-### Create a Microsoft Fabric Lakehouse
-As stated in README, we are using the Microsoft Fabric OneLake access roles, currently in Public Preview. Data access role security DOES NOT YET apply to the Mirrored Azure Databricks Catalog item in Fabric. Therefore, we create a Lakehouse and will shortcut the tables from Mirrored Azure Databricks Catalog to a Fabric Lakehouse to synchronize access policies between Azure Databricks and Fabric. [Here](https://learn.microsoft.com/en-us/fabric/data-engineering/create-lakehouse) is stated how to create a Fabric Lakehouse.
 
 
 ### Create a yaml configuration file

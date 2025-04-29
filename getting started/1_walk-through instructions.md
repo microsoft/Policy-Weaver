@@ -1,19 +1,16 @@
 
 ## Prepare the Microsoft Fabric environment
 
-### 1. Create a Shortcut in your Lakehouse to the Mirrored Databricks tables
+### 1. Upload the yaml config file to a Fabric Lakehouse
 
-Log in to Microsoft Fabric and navigate to the Lakehouse you created in step 0_preprequisites. Under the Tab "Get Data" select to create a shortcut and choose "Microsoft OneLake" from the internal sources section. In the overview that is shown next, select the Mirrored Azure Databricks catalog item in which you have connected your Azure Databricks tables to. 
+As we created the yaml configuration file in the prerequisite step stored locally, we will upload it to Fabric and run it in a Notebook. You can either use an existing Fabric Lakehouse or create a new Lakehouse. Instructions to do so can be found [here](https://learn.microsoft.com/en-us/fabric/data-engineering/create-lakehouse).
 
-
-### 2. Upload the yaml config file to your Lakehouse
-
-Again under "Get Data", select to upload files and choose the yaml configuration file you have created in step 0_prerequisites. Ensure the yaml file is stored in your Lakehouse: Click on the left side of the Lakehouse navigation to the file section and find your yaml file.
+In your Lakehouse, at the top you will find "Get Data" to upload files and choose the yaml configuration file you have created in step 0_prerequisites. Ensure the yaml file is stored in your Lakehouse: Refresh the Lakheouse and  cnavigate to the Lakehouse file section to find your yaml file.
 
 
-### 3. Create a Notebook to run Policy Weaver
+### 2. Create a Notebook to run Policy Weaver
 
-You can stay in the Fabric Lakehouse and click to create a new Notebook at the top bar or choose to run the PolicyWeaver with a different tool.
+You can stay in the Fabric Lakehouse and click at the top bar to create a new Notebook. You can also run the PolicyWeaver commands with a different tool.
 
 Using the Notebook in Fabric, paste the following code:
 
@@ -27,7 +24,7 @@ from policyweaver.policyweaver import Weaver
 from policyweaver.models.databricksmodel import DatabricksSourceMap
 
 #define the config
-config = DatabricksSourceMap.from_yaml('path_to_yaml_config_file')
+config = DatabricksSourceMap.from_yaml('your_Lakehousepath_to_yaml_config_file')
 
 #run the PolicyWeaver
 await Weaver.run(config)
