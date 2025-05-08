@@ -20,7 +20,7 @@ Policy Weaver will initially supports the following sources:
 > for row filter and column-masking policies will be added in a future version.
 
 
-For more information on prerequisites and instructions on getting started, please see the [Getting Started]() documentation. 
+For more information on prerequisites and instructions on getting started, please see the [Getting Started](https://github.com/microsoft/Policy-Weaver/blob/main/getting%20started/0_prerequisites.md) documentation. 
 
 ## OneLake Data Access Roles Overview
 

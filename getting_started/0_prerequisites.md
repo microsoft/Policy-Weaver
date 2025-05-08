@@ -1,6 +1,6 @@
-## Disclaimer: The following prerequisites apply for Policy Weaver for Azure Databricks and Microsoft Fabric
+## Disclaimer: The following prerequisites apply when using the acceleator PolicyWeaver for Azure Databricks and Microsoft Fabric
 
-PolicyWeaver is available on [PyPi](https://pypi.org/project/policy-weaver/) and can be installed via `pip install policy-weaver`.
+PolicyWeaver is an open source library and available on [PyPi](https://pypi.org/project/policy-weaver/). It is intended to accelerate and streamline the sync of data access policies from Azure Databrick and apply it to Microsoft Fabric when using "Mirrored Azure Databricks Catalog" for data access. It can be installed via `pip install policy-weaver`.
 
 ### Create a Microsoft Entra Application and Service Principal account
 Before we start using PolicyWeaver, it is necessary to create an Entra Application in Azure for identity management. When you register a new application in Microsoft Entra ID, a service principal is automatically created for the app registration and it is the app's identity in the Microsoft Entra tenant. You can restrict access to resources like Azure Databricks and Fabric by the roles that you assign to the service principal. Follow the steps [here](https://learn.microsoft.com/en-us/entra/identity-platform/howto-create-service-principal-portal) to register an application in Microsoft Entra ID and create a service principal account. 
