@@ -109,9 +109,8 @@ class FabricConfig(CommonBaseModel):
     tenant_id: Optional[str] = Field(alias="tenant_id", default=None)
     workspace_id: Optional[str] = Field(alias="workspace_id", default=None)
     workspace_name: Optional[str] = Field(alias="workspace_name", default=None)
-    lakehouse_id: Optional[str] = Field(alias="lakehouse_id", default=None)
-    lakehouse_name: Optional[str] = Field(alias="lakehouse_name", default=None)
-    use_lakehouse_schema: Optional[bool] = Field(alias="use_lakehouse_schema", default=None)
+    mirror_id: Optional[str] = Field(alias="mirror_id", default=None)
+    mirror_name: Optional[str] = Field(alias="mirror_name", default=None)
 
 class ServicePrincipalConfig(CommonBaseModel):
     tenant_id: Optional[str] = Field(alias="tenant_id", default=None)
@@ -120,8 +119,8 @@ class ServicePrincipalConfig(CommonBaseModel):
 
 
 class SourceMapItem(CatalogItem):
-    lakehouse_table_name: Optional[str] = Field(
-        alias="lakehouse_table_name", default=None
+    mirror_table_name: Optional[str] = Field(
+        alias="mirror_table_name", default=None
     )
 
 class SourceMap(CommonBaseModel):

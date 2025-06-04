@@ -13,7 +13,7 @@ class ServicePrincipal:
     def get_token(self) -> str:
         if self.__token__ is None:
             self.__token__ = self.credential.get_token("https://api.fabric.microsoft.com/.default")
-
+        
         return self.__token__.token
 
     def get_token_header(self):

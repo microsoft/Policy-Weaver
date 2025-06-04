@@ -23,7 +23,6 @@ classifiers = [
   "Intended Audience :: Information Technology",
   "Intended Audience :: System Administrators",
   "Topic :: Software Development",
-  "License :: OSI Approved :: MIT License",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.8",
@@ -32,14 +31,15 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12"
 ]
-license = {text = "MIT License"}
+license = "MIT"
+license-files = ["LICENSE"]
 keywords = ["Fabric", "Fabric Access Policy", "Databricks", "BigQuery", "Snowflake"]
 
 [tool.setuptools]
 py-modules = []
 
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools >= 77"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
