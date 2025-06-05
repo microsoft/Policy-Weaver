@@ -1,5 +1,7 @@
+import logging
+
 from databricks.sdk import WorkspaceClient
-from typing import List, Tuple, Dict
+from typing import List, Tuple
 from databricks.sdk.errors import NotFound
 from databricks.sdk.service.catalog import SecurableType
 
@@ -10,8 +12,9 @@ from policyweaver.weavercore import PolicyWeaverCore
 from policyweaver.auth import ServicePrincipal
 
 class DatabricksAPIClient:
-    def __init__(self, workspace: str, service_principal: ServicePrincipal):
+    logger = logging.getLogger("POLICY_WEAVER")
 
+    def __init__(self, workspace: str, service_principal: ServicePrincipal):
         self.workspace_client = WorkspaceClient(host=workspace,
                                                 azure_tenant_id=service_principal.tenant_id,
                                                 azure_client_id=service_principal.client_id,
@@ -20,6 +23,8 @@ class DatabricksAPIClient:
     def get_workspace_policy_map(self, source: Source) -> Workspace:
         try:
             api_catalog = self.workspace_client.catalogs.get(source.name)
+
+            self.logger.debug(f"Policy Export for {api_catalog.name}...")
 
             return Workspace(
                 catalog=Catalog(
@@ -96,26 +101,28 @@ class DatabricksAPIClient:
         schemas = []
 
         for s in api_schemas:
-            schema_filter = self.__get_schema_from_list__(schema_filters, s.name)
+            if s.name != "information_schema":
+                self.logger.debug(f"Policy Export for schema {s.name}...")
+                schema_filter = self.__get_schema_from_list__(schema_filters, s.name)
 
-            tbls = self.__get_schema_tables__(
-                catalog=catalog,
-                schema=s.name,
-                table_filters=None if not schema_filters else schema_filter.tables,
-            )
-
-            schemas.append(
-                Schema(
-                    name=s.name,
-                    tables=tbls,
-                    privileges=self.__get_privileges__(
-                        SecurableType.SCHEMA, s.full_name
-                    ),
-                    mask_functions=self.__get_column_mask_functions__(
-                        catalog, s.name, tbls
-                    ),
+                tbls = self.__get_schema_tables__(
+                    catalog=catalog,
+                    schema=s.name,
+                    table_filters=None if not schema_filters else schema_filter.tables,
                 )
-            )
+
+                schemas.append(
+                    Schema(
+                        name=s.name,
+                        tables=tbls,
+                        privileges=self.__get_privileges__(
+                            SecurableType.SCHEMA, s.full_name
+                        ),
+                        mask_functions=self.__get_column_mask_functions__(
+                            catalog, s.name, tbls
+                        ),
+                    )
+                )
 
         return schemas
 

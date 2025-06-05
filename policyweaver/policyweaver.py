@@ -33,7 +33,7 @@ from policyweaver.models.common import (
 
 class Weaver:
     fabric_policy_role_prefix = "xxPOLICYWEAVERxx"
-    
+
     @staticmethod
     async def run(config: SourceMap) -> None:
         Configuration.configure_environment(config)
@@ -73,16 +73,11 @@ class Weaver:
 
         if not self.config.fabric.tenant_id:
             self.config.fabric.tenant_id = self.service_principal.tenant_id
-        
-        if not self.config.fabric.lakehouse_id:
-            self.config.fabric.lakehouse_id = self.fabric_api.get_lakehouse_id(
-                self.config.fabric.lakehouse_name
-            )
 
-        if not self.config.fabric.use_lakehouse_schema:
-            self.config.fabric.use_lakehouse_schema = self.fabric_api.has_schema(
-                self.config.fabric.lakehouse_id
-            )
+        self.logger.info(f"Tenant ID: {self.config.fabric.tenant_id}...")
+        self.logger.info(f"Workspace ID: {self.config.fabric.workspace_id}...")
+        self.logger.info(f"Mirror ID: {self.config.fabric.mirror_id}...")
+        self.logger.info(f"Mirror Name: {self.config.fabric.mirror_name}...")
 
         if not self.config.fabric.workspace_name:
             self.config.fabric.workspace_name = self.fabric_api.get_workspace_name()
@@ -122,19 +117,19 @@ class Weaver:
         #self.logger.debug(json.dumps(dap_request))
 
         self.fabric_api.put_data_access_policy(
-            self.config.fabric.lakehouse_id, json.dumps(dap_request)
+            self.config.fabric.mirror_id, json.dumps(dap_request)
         )
 
         self.logger.info(f"Access Polices Updated: {len(access_policies)}")
 
     def __get_current_access_policy__(self) -> None:
         try:
-            result = self.fabric_api.list_data_access_policy(self.config.fabric.lakehouse_id)
+            result = self.fabric_api.list_data_access_policy(self.config.fabric.mirror_id)
             type_adapter = TypeAdapter(List[DataAccessPolicy])
             self.current_fabric_policies = type_adapter.validate_python(result["value"])
         except HTTPError as e:
             if e.response.status_code == 400:
-                raise PolicyWeaverError("ERROR: Please ensure Data Access Policies are enabled on the lakehouse.")
+                raise PolicyWeaverError("ERROR: Please ensure Data Access Policies are enabled on the Fabric Mirror.")
             else:
                 raise e
             
@@ -151,9 +146,8 @@ class Weaver:
         else:
             matched_tbl = None
 
-        table_nm = table if not matched_tbl else matched_tbl.lakehouse_table_name
-        table_path = f"Tables/{table_nm}" if not self.config.fabric.use_lakehouse_schema else \
-            f"Tables/{schema}/{table_nm}"         
+        table_nm = table if not matched_tbl else matched_tbl.mirror_table_name
+        table_path = f"Tables/{schema}/{table_nm}"         
 
         return table_path
 

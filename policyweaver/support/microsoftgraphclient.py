@@ -15,7 +15,7 @@ class MicrosoftGraphClient:
             scopes=["https://graph.microsoft.com/.default"],
         )
 
-    async def get_user_by_email(self, email: str) -> str:
+    async def __get_user_by_email(self, email: str) -> str:
         try:
             u = await self.graph_client.users.by_user_id(email).get()
             return u
@@ -23,9 +23,9 @@ class MicrosoftGraphClient:
             return None
 
     async def lookup_user_id_by_email(self, email: str) -> str:
-        user = await self.get_user_by_email(email)
-
+        user = await self.__get_user_by_email(email)
+    
         if not user:
             return None
-
+    
         return user.id
