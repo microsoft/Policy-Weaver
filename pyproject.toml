@@ -1,6 +1,6 @@
 [project]
 name = "policy-weaver"
-version = "0.2.0"
+version = "0.2.1"
 description = "Policy Weaver for Microsoft Fabric"
 readme = "README.md"
 requires-python = ">=3.11.8"
@@ -11,7 +11,7 @@ authors = [
 dependencies = [
     "azure-identity>=1.19.0",
     "azure-storage-file-datalake>=12.18.1",
-    "databricks-sdk>=0.40.0",
+    "databricks-sdk==0.55.0",
     "msgraph-sdk>=1.16.0",
     "pydantic>=2.10.5",
     "python-dotenv>=1.0.1",
