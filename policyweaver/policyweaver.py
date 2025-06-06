@@ -37,7 +37,7 @@ class Weaver:
     @staticmethod
     async def run(config: SourceMap) -> None:
         Configuration.configure_environment(config)
-        logger = logging.getLogger(config.application_name)
+        logger = logging.getLogger("POLICY_WEAVER")
 
         service_principal = ServicePrincipal(
             tenant_id=config.service_principal.tenant_id,
@@ -63,7 +63,7 @@ class Weaver:
 
     def __init__(self, config: SourceMap, service_principal: ServicePrincipal) -> None:
         self.config = config
-        self.logger = logging.getLogger(config.application_name)
+        self.logger = logging.getLogger("POLICY_WEAVER")
         self.service_principal = service_principal
         self.fabric_api = FabricAPI(config.fabric.workspace_id, service_principal)
         self.graph_client = MicrosoftGraphClient(service_principal)

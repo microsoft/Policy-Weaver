@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field, ConfigDict
 import os
 import re
 import yaml
+import uuid
 
 class PolicyWeaverError(Exception):
     pass
@@ -171,3 +172,14 @@ class Utils:
     def is_email(email):
         pattern = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
         return re.match(pattern, email)
+    
+    @staticmethod
+    def is_uuid(uuid_string:str) -> bool:
+        if not uuid_string:
+            return False
+        
+        try:
+            uuid.UUID(uuid_string)
+            return True
+        except ValueError:
+            return False

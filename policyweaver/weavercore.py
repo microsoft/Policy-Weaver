@@ -17,7 +17,7 @@ class PolicyWeaverCore:
         self.connector_type = type
         self.config = config
         self.service_principal = service_principal
-        self.logger = logging.getLogger(config.application_name)
+        self.logger = logging.getLogger("POLICY_WEAVER")
 
     def map_policy(self) -> PolicyExport:
         pass
