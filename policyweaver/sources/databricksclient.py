@@ -1,4 +1,7 @@
 import logging
+import json
+
+from pydantic.json import pydantic_encoder
 
 from databricks.sdk import WorkspaceClient
 from typing import List, Tuple
@@ -12,9 +15,8 @@ from policyweaver.weavercore import PolicyWeaverCore
 from policyweaver.auth import ServicePrincipal
 
 class DatabricksAPIClient:
-    logger = logging.getLogger("POLICY_WEAVER")
-
     def __init__(self, workspace: str, service_principal: ServicePrincipal):
+        self.logger = logging.getLogger("POLICY_WEAVER")
         self.workspace_client = WorkspaceClient(host=workspace,
                                                 azure_tenant_id=service_principal.tenant_id,
                                                 azure_client_id=service_principal.client_id,
@@ -24,9 +26,9 @@ class DatabricksAPIClient:
         try:
             api_catalog = self.workspace_client.catalogs.get(source.name)
 
-            self.logger.debug(f"Policy Export for {api_catalog.name}...")
+            self.logger.debug(f"DBX Policy Export for {api_catalog.name}...")
 
-            return Workspace(
+            workspace = Workspace(
                 catalog=Catalog(
                     name=api_catalog.name,
                     schemas=self.__get_catalog_schemas__(
@@ -39,12 +41,14 @@ class DatabricksAPIClient:
                 users=self.__get_workspace_users__(),
                 groups=self.__get_workspace_groups__(),
             )
-            return
+
+            self.logger.debug(f"DBX Workspace Policy Map for {api_catalog.name}: {json.dumps(workspace, default=pydantic_encoder, indent=4)}")
+            return workspace
         except NotFound:
             return None
 
     def __get_workspace_users__(self):
-        return [
+        users = [
             WorkspaceUser(
                 id=u.id,
                 name=u.display_name,
@@ -53,8 +57,12 @@ class DatabricksAPIClient:
             for u in self.workspace_client.users.list()
         ]
 
+        self.logger.debug(f"DBX Workspace Users: {json.dumps(users, default=pydantic_encoder, indent=4)}")
+
+        return users
+
     def __get_workspace_groups__(self):
-        return [
+        groups = [
             WorkspaceGroup(
                 id=g.id,
                 name=g.display_name,
@@ -70,15 +78,21 @@ class DatabricksAPIClient:
             for g in self.workspace_client.groups.list()
         ]
 
+        self.logger.debug(f"DBX Workspace Groups: {json.dumps(groups, default=pydantic_encoder, indent=4)}")
+        return groups
+
     def __get_privileges__(self, type: SecurableType, name) -> List[Privilege]:
         api_privileges = self.workspace_client.grants.get(
             securable_type=type, full_name=name
         )
 
-        return [
+        privileges =  [
             Privilege(principal=p.principal, privileges=[e.value for e in p.privileges])
             for p in api_privileges.privilege_assignments
         ]
+
+        self.logger.debug(f"DBX Privileges for {name}-{type}: {json.dumps(privileges, default=pydantic_encoder, indent=4)}")
+        return privileges
 
     def __get_schema_from_list__(self, schema_list, schema):
         if schema_list:
@@ -95,6 +109,8 @@ class DatabricksAPIClient:
         api_schemas = self.workspace_client.schemas.list(catalog_name=catalog)
 
         if schema_filters:
+            self.logger.debug(f"DBX Policy Export Schema Filters for {catalog}: {json.dumps(schema_filters, default=pydantic_encoder, indent=4)}")
+            
             filter = [s.name for s in schema_filters]
             api_schemas = [s for s in api_schemas if s.name in filter]
 
@@ -102,7 +118,7 @@ class DatabricksAPIClient:
 
         for s in api_schemas:
             if s.name != "information_schema":
-                self.logger.debug(f"Policy Export for schema {s.name}...")
+                self.logger.debug(f"DBX Policy Export for schema {catalog}.{s.name}...")
                 schema_filter = self.__get_schema_from_list__(schema_filters, s.name)
 
                 tbls = self.__get_schema_tables__(
@@ -124,6 +140,8 @@ class DatabricksAPIClient:
                     )
                 )
 
+        self.logger.debug(f"DBX Schemas for {catalog}: {json.dumps(schemas, default=pydantic_encoder, indent=4)}")
+
         return schemas
 
     def __get_schema_tables__(
@@ -136,7 +154,7 @@ class DatabricksAPIClient:
         if table_filters:
             api_tables = [t for t in api_tables if t.name in table_filters]
 
-        return [
+        tables = [
             Table(
                 name=t.name,
                 row_filter=None
@@ -157,6 +175,10 @@ class DatabricksAPIClient:
             for t in api_tables
         ]
 
+        self.logger.debug(f"DBX Tables for {catalog}.{schema}: {json.dumps(tables, default=pydantic_encoder, indent=4)}")
+
+        return tables
+
     def __get_column_mask_functions__(
         self, catalog: str, schema: str, tables: List[Table]
     ) -> List[Function]:
@@ -172,7 +194,7 @@ class DatabricksAPIClient:
                     if m.name not in inscope:
                         inscope.append(m.name)
 
-        return [
+        functions = [
             Function(
                 name=f.full_name,
                 sql=f.routine_definition,
@@ -183,6 +205,9 @@ class DatabricksAPIClient:
             )
             if f.full_name in inscope
         ]
+
+        self.logger.debug(f"DBX Functions for {catalog}.{schema}: {json.dumps(functions, default=pydantic_encoder, indent=4)}") 
+        return functions
 
 class DatabricksPolicyWeaver(PolicyWeaverCore):
     dbx_account_users_group = "account users"
@@ -236,7 +261,9 @@ class DatabricksPolicyWeaver(PolicyWeaverCore):
                     if privilege.principal not in self.snapshot:
                         self.snapshot[privilege.principal] = PrivilegeSnapshot(
                                 principal=privilege.principal,
-                                type=IamType.USER if Utils.is_email(privilege.principal) else IamType.GROUP,
+                                type=IamType.USER \
+                                    if Utils.is_email(privilege.principal) or \
+                                        Utils.is_uuid(privilege.principal) else IamType.GROUP,
                                 maps={dependency_map.key: dependency_map}
                             )
                     else:
@@ -329,7 +356,7 @@ class DatabricksPolicyWeaver(PolicyWeaverCore):
         return policies
 
     def __build_policy__(self, table_permissions, catalog, schema=None, table=None) -> Policy:
-        return Policy(
+        policy = Policy(
             catalog=catalog,
             catalog_schema=schema,
             table=table,
@@ -344,6 +371,9 @@ class DatabricksPolicyWeaver(PolicyWeaverCore):
                 )
             ],
         )
+
+        self.logger.debug(f"DBX Policy Export - {policy.catalog}.{policy.catalog_schema}.{policy.table} - {json.dumps(policy, default=pydantic_encoder, indent=4)}")
+        return policy
 
     def __get_key_set__(self, key) -> List[str]:
         keys = key.split(".")
@@ -360,7 +390,7 @@ class DatabricksPolicyWeaver(PolicyWeaverCore):
             schema_prereq = self.snapshot[principal].maps[key].schema_prerequisites
             read_permission = self.snapshot[principal].maps[key].read_permissions
 
-            self.logger.debug(f"Evaluate - Principal ({principal}) Key ({key}) - {catalog_prereq}|{schema_prereq}|{read_permission}")
+            self.logger.debug(f"DBX Evaluate - Principal ({principal}) Key ({key}) - {catalog_prereq}|{schema_prereq}|{read_permission}")
             
             return catalog_prereq, schema_prereq, read_permission
         else:
@@ -379,7 +409,7 @@ class DatabricksPolicyWeaver(PolicyWeaverCore):
                 catalog_prereq = catalog_prereq if catalog_prereq else c
                 schema_prereq = schema_prereq if schema_prereq else s
                 read_permission = read_permission if read_permission else r
-                self.logger.debug(f"Evaluate - Principal ({principal}) Group ({member_group}) Key ({k}) - {catalog_prereq}|{schema_prereq}|{read_permission}")
+                self.logger.debug(f"DBX Evaluate - Principal ({principal}) Group ({member_group}) Key ({k}) - {catalog_prereq}|{schema_prereq}|{read_permission}")
 
                 if catalog_prereq and schema_prereq and read_permission:
                     break
@@ -416,18 +446,19 @@ class DatabricksPolicyWeaver(PolicyWeaverCore):
         for r in privileges:
             if any(p in self.dbx_read_permissions for p in r.privileges):
                 if self.__has_read_permissions__(r.principal, key):
-                    if Utils.is_email(r.principal):                    
+                    if Utils.is_email(r.principal) or Utils.is_uuid(r.principal):                    
                         if not r.principal in user_permissions:
-                            self.logger.debug(f"Principal ({r.principal}) direct add for {key}...")
+                            self.logger.debug(f"DBX Principal ({r.principal}) direct add for {key}...")
                             user_permissions.append(r.principal)
                     else:
                         for user in self.workspace.users:
-                            self.logger.debug(f"Membership Check - User ({user.email}) | Group({r.principal}) for Key({key})")
-                            if self.__is_in_group__(user.email, r.principal):
-                                if not user.email in user_permissions:
-                                    self.logger.debug(f"Principal ({user.email}) added by {r.principal} group for {key}...")
-                                    user_permissions.append(user.email)
+                            if user.email:
+                                #self.logger.debug(f"DBX Membership Check - User ({user.email}) | Group({r.principal}) for Key({key})")
+                                if self.__is_in_group__(user.email, r.principal):
+                                    if not user.email in user_permissions:
+                                        self.logger.debug(f"DBX Principal ({user.email}) added by {r.principal} group for {key}...")
+                                        user_permissions.append(user.email)
                 else:
-                    self.logger.debug(f"Principal ({r.principal}) does not have read permissions for {key}...")
+                    self.logger.debug(f"DBX Principal ({r.principal}) does not have read permissions for {key}...")
 
         return user_permissions

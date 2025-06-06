@@ -1,7 +1,10 @@
+import logging
+
 from policyweaver.support.restapiclient import RestAPIProxy
 from policyweaver.auth import ServicePrincipal
 class FabricAPI:
     def __init__(self, workspace_id: str, service_principal: ServicePrincipal):
+        self.logger = logging.getLogger("POLICY_WEAVER")
         self.workspace_id = workspace_id
         self.token = service_principal.get_token()
 
@@ -15,7 +18,9 @@ class FabricAPI:
         )
 
     def __get_workspace_uri__(self, uri) -> str:
-        return f"workspaces/{self.workspace_id}/{uri}"
+        uri = f"workspaces/{self.workspace_id}/{uri}"
+        self.logger.debug(f"FABRIC API - WORKSPACE URI: {uri}")
+        return uri
 
     def put_data_access_policy(self, item_id, access_policy):
         uri = f"items/{item_id}/dataAccessRoles"
