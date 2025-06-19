@@ -3,7 +3,6 @@ from policyweaver.models.common import (
     SourceMap,
     PolicyExport,
 )
-from policyweaver.auth import ServicePrincipal
 
 from datetime import datetime
 from typing import Dict
@@ -13,16 +12,45 @@ import logging
 
 
 class PolicyWeaverCore:
-    def __init__(self, type: PolicyWeaverConnectorType, config:SourceMap, service_principal:ServicePrincipal):
+    """
+    Core class for Policy Weaver, responsible for mapping policies
+    from various sources to a unified format.
+    This class initializes with a connector type and configuration,
+    and provides a method to map policies.
+    Example usage:
+        core = PolicyWeaverCore(PolicyWeaverConnectorType.AZURE, config)
+        policy_export = core.map_policy()
+    """
+    def __init__(self, type: PolicyWeaverConnectorType, config:SourceMap):
+        """
+        Initialize the PolicyWeaverCore with a connector type and configuration.
+        Args:
+            type (PolicyWeaverConnectorType): The type of connector to use (e.g., Azure, AWS).
+            config (SourceMap): Configuration settings for the policy mapping.
+        """
         self.connector_type = type
         self.config = config
-        self.service_principal = service_principal
         self.logger = logging.getLogger("POLICY_WEAVER")
 
     def map_policy(self) -> PolicyExport:
+        """
+        Map policies from the configured source to a unified format.
+        This method retrieves policies from the source, processes them,
+        and returns a PolicyExport object containing the mapped policies.
+        Returns:
+            PolicyExport: An object containing the mapped policies.
+        """
         pass
 
     def __write_to_log__(self, type: str, data: Dict):
+        """
+        Write the provided data to a log file in a specific directory based on the type.
+        The log file is named with the current timestamp and stored in a directory
+        named after the type (e.g., "azure_snapshot", "aws_snapshot").
+        Args:
+            type (str): The type of connector (e.g., "Azure", "AWS").
+            data (Dict): The data to log, typically a dictionary containing policy information.
+        """
         directory = "."
         log_directory = f"{directory}/{type.lower()}_snapshot"
 
