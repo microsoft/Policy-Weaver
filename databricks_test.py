@@ -4,7 +4,8 @@ from policyweaver.policyweaver import Weaver
 from policyweaver.models.databricksmodel import DatabricksSourceMap
 
 #Load config from the default path (./settings.yaml)
-config = DatabricksSourceMap.from_yaml("./config.yaml")
+#config = DatabricksSourceMap.from_yaml("./config.yaml")
+config = DatabricksSourceMap.from_yaml("./settings.yaml")
 
 #configure logging for the client
 log_level = logging.DEBUG
