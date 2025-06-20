@@ -1,7 +1,8 @@
 import logging
 
-from policyweaver.support.restapiclient import RestAPIProxy
-from policyweaver.auth import ServicePrincipal
+from policyweaver.core.api.rest import RestAPIProxy
+from policyweaver.core.auth import ServicePrincipal
+
 class FabricAPI:
     """
     A class to interact with the Fabric API for managing data access policies.

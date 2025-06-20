@@ -1,13 +1,10 @@
-from policyweaver.models.common import (
-    CommonBaseModel,
-    CommonBaseEnum,
-    IamType,
-    SourceMap
-)
-
 from pydantic import Field
 from typing import Optional, List, Dict
-from policyweaver.models.common import *
+
+from policyweaver.core.utility import Utils
+from policyweaver.models.common import CommonBaseModel
+from policyweaver.models.config import SourceMap
+from policyweaver.core.enum import IamType
 
 class DependencyMap(CommonBaseModel):
     """
@@ -27,7 +24,9 @@ class DependencyMap(CommonBaseModel):
     catalog_schema: Optional[str] = Field(alias="schema", default=None)
     table: Optional[str] = Field(alias="table", default=None)
     privileges: Optional[List[str]] = Field(alias="privileges", default=[])
+    catalog_all_cascade: Optional[bool] = Field(alias="catalog_all_cascade", default=False)
     catalog_prerequisites: Optional[bool] = Field(alias="catalog_prerequisites", default=False)
+    schema_all_cascade: Optional[bool] = Field(alias="schema_all_cascade", default=False)
     schema_prerequisites: Optional[bool] = Field(alias="schema_prerequisites", default=False)
     read_permissions: Optional[bool] = Field(alias="read_permissions", default=False)
 
@@ -352,7 +351,7 @@ class Workspace(BaseObject):
             membership = self.__extend_with_dedup__(membership, 
                                                     self.__flatten_group__(g.name, object_id))                  
 
-        return membership
+        return list(set(membership))
     
     def __extend_with_dedup__(self, src, new):
         """

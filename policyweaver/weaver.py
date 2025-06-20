@@ -6,13 +6,14 @@ import json
 import re
 import logging
 
-from policyweaver.models.common import Utils
-from policyweaver.auth import ServicePrincipal
-from policyweaver.conf import Configuration
-from policyweaver.support.fabricapiclient import FabricAPI
-from policyweaver.support.microsoftgraphclient import MicrosoftGraphClient
-from policyweaver.sources.databricksclient import DatabricksPolicyWeaver
-from policyweaver.models.fabricmodel import (
+from policyweaver.core.utility import Utils
+from policyweaver.core.exception import PolicyWeaverError
+from policyweaver.core.auth import ServicePrincipal
+from policyweaver.core.conf import Configuration
+from policyweaver.core.api.fabric import FabricAPI
+from policyweaver.core.api.microsoftgraph import MicrosoftGraphClient
+from policyweaver.plugins.databricks.client import DatabricksPolicyWeaver
+from policyweaver.models.fabric import (
     DataAccessPolicy,
     PolicyDecisionRule,
     PolicyEffectType,
@@ -23,19 +24,18 @@ from policyweaver.models.fabricmodel import (
     FabricMemberObjectType,
     FabricPolicyAccessType,
 )
-from policyweaver.models.common import (
-    PolicyExport,
+from policyweaver.models.export import PolicyExport
+from policyweaver.models.config import SourceMap
+from policyweaver.core.enum import (
+    PolicyWeaverConnectorType,
     PermissionType,
     PermissionState,
-    IamType,
-    SourceMap,
-    PolicyWeaverError,
-    PolicyWeaverConnectorType,
+    IamType
 )
 
-class Weaver:
+class WeaverAgent:
     """
-    Weaver class for applying policies to Microsoft Fabric.
+    WeaverAgen class for applying policies to Microsoft Fabric.
     This class is responsible for synchronizing policies from a source (e.g., Databricks
     Unity Catalog) to Microsoft Fabric by creating or updating data access policies.
     It uses the Fabric API to manage data access policies and the Microsoft Graph API
@@ -78,7 +78,7 @@ class Weaver:
         
         #self.logger.debug(policy_export.model_dump_json(indent=4))
 
-        weaver = Weaver(config)
+        weaver = WeaverAgent(config)
         await weaver.apply(policy_export)
         logger.info("Policy Weaver Sync complete!")
 
@@ -225,10 +225,10 @@ class Weaver:
         for policy in policy_export.policies:
             for permission in policy.permissions:
                 for object in permission.objects:
-                    if object.type == "USER" and object.id not in user_map:
+                    if object.type in [IamType.USER, IamType.SERVICE_PRINCIPAL] and object.id not in user_map:
                         user_map[
                             object.id
-                        ] = await self.graph_client.lookup_user_id_by_email(object.id)
+                        ] = await self.graph_client.query_graph_by_id(object.id)
 
         return user_map
 
@@ -289,12 +289,11 @@ class Weaver:
             members=PolicyMembers(
                 entra_members=[
                     EntraMember(
-                        object_id=self.user_map[o.id] if Utils.is_email(o.id) else o.id,
+                        object_id=self.user_map[o.id] if o.id in self.user_map else o.id,
                         tenant_id=self.config.fabric.tenant_id,
-                        object_type=FabricMemberObjectType.USER if Utils.is_email(o.id) else FabricMemberObjectType.SERVICE_PRINCIPAL,
+                        object_type=FabricMemberObjectType.USER if o.type == IamType.USER else FabricMemberObjectType.SERVICE_PRINCIPAL,
                     )
                     for o in permission.objects
-                    if o.type == IamType.USER
                 ]
             ),
         )

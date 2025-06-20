@@ -1,60 +1,13 @@
-from policyweaver.models.common import CommonBaseModel, CommonBaseEnum
 from typing import List, Optional
 from pydantic import Field
 
-
-class FabricPolicyAccessType(str, CommonBaseEnum):
-    """
-    Enum representing the access types for Fabric policies.
-    Attributes:
-        EXECUTE: Permission to execute actions.
-        EXPLORE: Permission to explore resources.
-        READ: Permission to read resources.
-        READ_ALL: Permission to read all resources.
-        RESHARE: Permission to reshare resources.
-        WRITE: Permission to write or modify resources.
-    """
-    EXECUTE = "Execute"
-    EXPLORE = "Explore"
-    READ = "Read"
-    READ_ALL = "ReadAll"
-    RESHARE = "Reshare"
-    WRITE = "Write"
-
-
-class FabricMemberObjectType(str, CommonBaseEnum):
-    """
-    Enum representing the types of Fabric members.
-    Attributes:
-        GROUP: Represents a group of members.
-        MANAGED_IDENTITY: Represents a managed identity.
-        SERVICE_PRINCIPAL: Represents a service principal.
-        USER: Represents a user.
-    """
-    GROUP = "Group"
-    MANAGED_IDENTITY = "ManagedIdentity"
-    SERVICE_PRINCIPAL = "ServicePrincipal"
-    USER = "User"
-
-
-class PolicyEffectType(str, CommonBaseEnum):
-    """
-    Enum representing the effect types for policies.
-    Attributes:
-        PERMIT: Indicates that the action is permitted.
-    """
-    PERMIT = "Permit"
-
-
-class PolicyAttributeType(str, CommonBaseEnum):
-    """
-    Enum representing the types of attributes for policies.
-    Attributes:
-        ACTION: Represents an action attribute.
-        PATH: Represents a path attribute.
-    """
-    ACTION = "Action"
-    PATH = "Path"
+from policyweaver.models.common import CommonBaseModel
+from policyweaver.core.enum import (
+    FabricMemberObjectType,
+    FabricPolicyAccessType,
+    PolicyAttributeType,
+    PolicyEffectType
+)
 
 class EntraMember(CommonBaseModel):
     """

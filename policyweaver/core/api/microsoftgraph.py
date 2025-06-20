@@ -5,8 +5,8 @@ import logging
 from msgraph.graph_service_client import GraphServiceClient
 from kiota_abstractions.api_error import APIError
 
-from policyweaver.auth import ServicePrincipal
-from policyweaver.models.common import Utils
+from policyweaver.core.auth import ServicePrincipal
+from policyweaver.core.utility import Utils
 
 class MicrosoftGraphClient:
     """
@@ -46,7 +46,7 @@ class MicrosoftGraphClient:
         except APIError:
             return None
 
-    async def lookup_user_id_by_email(self, email: str) -> str:
+    async def query_graph_by_id(self, email: str) -> str:
         """
         Looks up a user ID by their email address.
         Args:
