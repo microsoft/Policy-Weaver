@@ -1,7 +1,8 @@
 from azure.identity import ClientSecretCredential
 import os
 
-from policyweaver.models.common import classproperty
+from policyweaver.core.common import classproperty
+
 class ServicePrincipal:
     """
     Service Principal for Azure Fabric API Authentication.

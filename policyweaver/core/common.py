@@ -1,15 +1,32 @@
-from policyweaver.models.common import (
-    PolicyWeaverConnectorType,
-    SourceMap,
-    PolicyExport,
-)
-
 from datetime import datetime
 from typing import Dict
 import os
 import json
 import logging
 
+from policyweaver.models.export import PolicyExport
+from policyweaver.models.config import SourceMap
+from policyweaver.core.enum import PolicyWeaverConnectorType
+
+class classproperty(property):
+    """
+    A class property decorator that allows you to define properties that can be accessed on the class itself.
+    Usage:
+        class MyClass:
+            @classproperty
+            def my_property(cls):
+                return "This is a class property
+    """
+    def __get__(self, owner_self, owner_cls):
+        """
+        Get the value of the property.
+        Args:
+            owner_self: The owner self.
+            owner_cls: The owner class.
+        Returns:
+            The value of the property.
+        """
+        return self.fget(owner_cls)
 
 class PolicyWeaverCore:
     """

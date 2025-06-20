@@ -1,9 +1,7 @@
 import os
 from uuid import uuid4
 
-from policyweaver.models.common import (
-    SourceMap
-)
+from policyweaver.models.config import SourceMap
 
 class Configuration:
     """

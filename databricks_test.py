@@ -1,11 +1,12 @@
 import asyncio
 import logging
-from policyweaver.policyweaver import Weaver
-from policyweaver.models.databricksmodel import DatabricksSourceMap
+
+from policyweaver.weaver import WeaverAgent
+from policyweaver.plugins.databricks.model import DatabricksSourceMap
 
 #Load config from the default path (./settings.yaml)
-#config = DatabricksSourceMap.from_yaml("./config.yaml")
-config = DatabricksSourceMap.from_yaml("./settings.yaml")
+config = DatabricksSourceMap.from_yaml("./config.yaml")
+#config = DatabricksSourceMap.from_yaml("./settings.yaml")
 
 #configure logging for the client
 log_level = logging.DEBUG
@@ -21,4 +22,4 @@ console_handler.setFormatter(formatter)
 logger.addHandler(console_handler)
 
 #run weaver
-asyncio.run(Weaver.run(config))
+asyncio.run(WeaverAgent.run(config))
