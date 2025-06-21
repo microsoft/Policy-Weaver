@@ -32,21 +32,25 @@ class MicrosoftGraphClient:
             scopes=["https://graph.microsoft.com/.default"],
         )
 
-    async def __get_user_by_email(self, email: str) -> str:
+    async def get_service_principal_by_id(self, id:str) -> str:
         """
-        Retrieves a user by their email address from the Microsoft Graph API.
+        Looks up a service principal by its ID.
         Args:
-            email (str): The email address of the user to look up.
+            id (str): The ID of the service principal to look up.
         Returns:
-            User object if found, None otherwise.
+            str: The service principal ID if found, None otherwise.
         """
         try:
-            u = await self.graph_client.users.by_user_id(email).get()
-            return u
+            sp = await self.graph_client.service_principals_with_app_id(id).get()
+            if sp:
+                self.logger.debug(f"MSFT GRAPH CLIENT {id} - {sp.id}")
+                return sp.id
         except APIError:
+            self.logger.debug(f"MSFT GRAPH CLIENT {id} - SERVICE PRINCIPAL NOT FOUND IN GRAPH API")
             return None
+        
 
-    async def query_graph_by_id(self, email: str) -> str:
+    async def get_user_by_email(self, email: str) -> str:
         """
         Looks up a user ID by their email address.
         Args:
@@ -54,16 +58,13 @@ class MicrosoftGraphClient:
         Returns:
             str: The user ID if found, None otherwise.
         """
-        if Utils.is_uuid(email):
-            return email  
-        
-        if Utils.is_email(email):
-            user = await self.__get_user_by_email(email)
+        try:
+            u = await self.graph_client.users.by_user_id(email).get()
 
-            if user: 
-                self.logger.debug(f"MSFT GRAPH CLIENT {email} - {user.id}")
-                return user.id 
-            
-        self.logger.debug(f"MSFT GRAPH CLIENT {email} - USER NOT FOUND")
-        return None
+            if u: 
+                self.logger.debug(f"MSFT GRAPH CLIENT {email} - {u.id}")
+                return u.id 
+        except APIError:
+            self.logger.debug(f"MSFT GRAPH CLIENT {email} - USER NOT FOUND IN GRAPH API")
+            return None
        

@@ -11,9 +11,27 @@ class PermissionObject(CommonBaseModel):
     Attributes:
         id (str): The unique identifier for the object.
         type (IamType): The type of the IAM entity associated with the object.
+        email (str): The email of the IAM entity, if applicable.
+        app_id (str): The application ID of the IAM entity, if applicable.
     """
     id: Optional[str] = Field(alias="id", default=None)
+    email: Optional[str] = Field(alias="email", default=None)
+    app_id: Optional[str] = Field(alias="app_id", default=None)
     type: Optional[IamType] = Field(alias="type", default=None)
+
+    @property
+    def lookup_id(self) -> str:
+        """
+        Returns the identifier used for looking up the object.
+        Depending on the type of IAM entity, it returns either the email, app_id, or id.
+        Returns:
+            str: The identifier for the object based on its type.
+        """
+        if self.type == IamType.USER:
+            return self.email
+        elif self.type == IamType.SERVICE_PRINCIPAL:
+            return self.app_id  
+        return self.id
 
 class Permission(CommonBaseModel):
     """

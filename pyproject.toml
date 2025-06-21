@@ -1,6 +1,6 @@
 [project]
 name = "policy-weaver"
-version = "0.2.3"
+version = "0.2.4"
 description = "Policy Weaver for Microsoft Fabric"
 readme = "README.md"
 requires-python = ">=3.11.8"
