@@ -102,7 +102,7 @@ class WeaverAgent:
         Args:
             policy_export (PolicyExport): The exported policies from the source, containing permissions and objects.
         """
-        self.user_map = await self.__get_user_map__(policy_export)
+        self.__graph_map = await self.__get_graph_map__(policy_export)
 
         if not self.config.fabric.tenant_id:
             self.config.fabric.tenant_id = ServicePrincipal.TenantId
@@ -210,27 +210,35 @@ class WeaverAgent:
 
         return table_path
 
-    async def __get_user_map__(self, policy_export: PolicyExport) -> Dict[str, str]:
+    async def __get_graph_map__(self, policy_export: PolicyExport) -> Dict[str, str]:
         """
-        Get a mapping of user IDs to their corresponding Entra object IDs.
-        This method iterates through the policies in the policy export and resolves
-        user identities using the Microsoft Graph API.
+        Retrieve a mapping of user and service principal IDs from the Microsoft Graph API.
+        This method iterates through the permissions in the policy export and retrieves
+        the corresponding user or service principal IDs based on their lookup IDs.
         Args:
             policy_export (PolicyExport): The exported policies from the source, containing permissions and objects.
         Returns:
-            Dict[str, str]: A dictionary mapping user IDs (emails) to their corresponding Entra object IDs.
+            Dict[str, str]: A dictionary mapping lookup IDs to user or service principal IDs.
         """
-        user_map = dict()
+        graph_map = dict()
 
         for policy in policy_export.policies:
             for permission in policy.permissions:
                 for object in permission.objects:
-                    if object.type in [IamType.USER, IamType.SERVICE_PRINCIPAL] and object.id not in user_map:
-                        user_map[
-                            object.id
-                        ] = await self.graph_client.query_graph_by_id(object.id)
-
-        return user_map
+                    if object.lookup_id not in graph_map:
+                        match object.type:
+                            case IamType.USER:
+                                if not object.id:
+                                    graph_map[object.lookup_id] = await self.graph_client.get_user_by_email(object.email)
+                                else:
+                                    graph_map[object.lookup_id] = object.id
+                            case IamType.SERVICE_PRINCIPAL:
+                                if not object.id:
+                                    graph_map[object.lookup_id] = await self.graph_client.get_service_principal_by_id(object.app_id)
+                                else:
+                                    graph_map[object.lookup_id] = object.id
+                            
+        return graph_map
 
     def __get_role_name__(self, policy) -> str:
         """
@@ -287,16 +295,21 @@ class WeaverAgent:
                 )
             ],
             members=PolicyMembers(
-                entra_members=[
-                    EntraMember(
-                        object_id=self.user_map[o.id] if o.id in self.user_map else o.id,
-                        tenant_id=self.config.fabric.tenant_id,
-                        object_type=FabricMemberObjectType.USER if o.type == IamType.USER else FabricMemberObjectType.SERVICE_PRINCIPAL,
-                    )
-                    for o in permission.objects
-                ]
+                entra_members=[]
             ),
         )
+
+        for o in permission.objects:
+            if o.lookup_id in self.__graph_map:
+                dap.members.entra_members.append(
+                    EntraMember(
+                        object_id=self.__graph_map[o.lookup_id],
+                        tenant_id=self.config.fabric.tenant_id,
+                        object_type=FabricMemberObjectType.USER if o.type == IamType.USER else FabricMemberObjectType.SERVICE_PRINCIPAL,
+                    ))
+            else:
+                self.logger.warning(f"POLICY WEAVER - {o.lookup_id} not found in Microsoft Graph. Skipping...")
+                continue
 
         self.logger.debug(f"POLICY WEAVER - Data Access Policy - {dap.name}: {dap.model_dump_json(indent=4)}")
         

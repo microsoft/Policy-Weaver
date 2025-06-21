@@ -222,7 +222,7 @@ class DatabricksPolicyWeaver(PolicyWeaverCore):
                 self.snapshot[principal].group_membership = self.workspace.get_user_groups(object_id)
             
             self.snapshot[principal].group_membership.append(self.dbx_account_users_group)
-            self.logger.debug(f"DBX Snapshot - Principal ({principal}) - {self.snapshot[principal].model_dump_json(indent=4)}") 
+            #self.logger.debug(f"DBX Snapshot - Principal ({principal}) - {self.snapshot[principal].model_dump_json(indent=4)}") 
 
     def __apply_privilege_inheritence__(self, privilege_snapshot:PrivilegeSnapshot) -> PrivilegeSnapshot:
         """
@@ -321,20 +321,22 @@ class DatabricksPolicyWeaver(PolicyWeaverCore):
                 u = self.workspace.lookup_user_by_email(p)
         
                 if u:
-                    self.logger.debug(f"DBX User Lookup - {p} - {u.model_dump_json(indent=4)}")
-                    po.id = u.external_id if u.external_id else p
+                    po.id = u.external_id
+                    po.email = p
+                    self.logger.debug(f"DBX User Lookup {p} - ID {u.external_id}")
                 else:
-                    self.logger.debug(f"DBX User Lookup - {p} - not found, using email...")
-                    po.id = p
+                    self.logger.debug(f"DBX User Lookup {p} - not found, using email...")
+                    po.email = p
             elif po.type == IamType.SERVICE_PRINCIPAL:
                 s = self.workspace.lookup_service_principal_by_id(p)
 
                 if s:
-                    self.logger.debug(f"DBX Service Principal ID Lookup - {s.external_id if s.external_id else p}")
-                    po.id = s.external_id if s.external_id else p
+                    po.id = s.external_id
+                    po.app_id = p
+                    self.logger.debug(f"DBX Service Principal ID Lookup {p} - ID {s.external_id}")
                 else:
-                    self.logger.debug(f"DBX Service Principal ID Lookup - {p} - not found, using application ID...")
-                    po.id = p
+                    self.logger.debug(f"DBX Service Principal ID Lookup {p} - not found...")
+                    po.app_id = p
             
             permission.objects.append(po)
 
