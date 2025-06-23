@@ -88,10 +88,13 @@ class WeaverAgent:
         logger.info(f"Running Policy Export for {config.type}: {config.source.name}...")
         policy_export = src.map_policy()
         
-        weaver.source_snapshot_handler(policy_export)
+        if policy_export:
+            weaver.source_snapshot_handler(policy_export)
 
-        await weaver.apply(policy_export)
-        logger.info("Policy Weaver Sync complete!")
+            await weaver.apply(policy_export)
+            logger.info("Policy Weaver Sync complete!")
+        else:
+            logger.info("No policies found to apply. Exiting...")
 
     def __init__(self, config: SourceMap) -> None:
         """
@@ -198,18 +201,21 @@ class WeaverAgent:
 
         self.logger.info(f"Policies Summary - Inserted: {inserted_policies}, Updated: {updated_policies}, Deleted: {deleted_policies}, Unmanaged: {unmanaged_policies}")
 
-        dap_request = {
-            "value": [
-                p.model_dump(exclude_none=True, exclude_unset=True)
-                for p in access_policies
-            ]
-        }
+        if (inserted_policies + updated_policies + deleted_policies + unmanaged_policies) > 0:
+            dap_request = {
+                "value": [
+                    p.model_dump(exclude_none=True, exclude_unset=True)
+                    for p in access_policies
+                ]
+            }
 
-        self.fabric_api.put_data_access_policy(
-            self.config.fabric.mirror_id, json.dumps(dap_request)
-        )
+            self.fabric_api.put_data_access_policy(
+                self.config.fabric.mirror_id, json.dumps(dap_request)
+            )
 
-        self.logger.info(f"Total Data Access Polices Synced: {len(access_policies)}")
+            self.logger.info(f"Total Data Access Polices Synced: {len(access_policies)}")
+        else:
+            self.logger.info("No Data Access Policies to sync...")
 
     def __get_current_access_policy__(self) -> None:
         """
