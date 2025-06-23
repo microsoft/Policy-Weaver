@@ -59,21 +59,72 @@ class PolicyWeaverCore:
         """
         pass
 
-    def __write_to_log__(self, type: str, data: Dict):
+class SnapshotExport:
+    """
+    A class to handle the export of snapshots to a specified directory.
+    This class provides methods to export snapshots for different types of sources
+    (e.g., dbx, fabric) and unmapped snapshots.
+    It creates directories for each type and saves the snapshots in JSON format.
+    Example usage:
+        snapshot_export = SnapshotExport(directory="/path/to/export")
+        snapshot_export.dbx_export_snapshot(snapshot_data)
+    """
+    def __init__(self, directory:str = None):
         """
-        Write the provided data to a log file in a specific directory based on the type.
-        The log file is named with the current timestamp and stored in a directory
-        named after the type (e.g., "azure_snapshot", "aws_snapshot").
+        Initialize the SnapshotExport with a directory to save snapshots.
         Args:
-            type (str): The type of connector (e.g., "Azure", "AWS").
-            data (Dict): The data to log, typically a dictionary containing policy information.
+            directory (str): The directory where snapshots will be saved.
+        If no directory is provided, it defaults to the current directory.
         """
-        directory = "."
-        log_directory = f"{directory}/{type.lower()}_snapshot"
+        if not directory:
+            self.directory = "."
+        else:
+            self.directory = directory
+
+    def dbx_export_snapshot(self, snapshot:dict):
+        """
+        Export a snapshot for Databricks (dbx) to the specified directory.
+        Args:
+            snapshot (dict): The snapshot data to be exported.
+            This method creates a directory for dbx snapshots if it doesn't exist
+            and saves the snapshot in JSON format with a timestamped filename.
+        """
+        self.__write_to_log__("dbx", snapshot)
+    
+    def fabric_export_snapshot(self, snapshot:dict):
+        """
+        Export a snapshot for Fabric to the specified directory.
+        Args:
+            snapshot (dict): The snapshot data to be exported.
+            This method creates a directory for fabric snapshots if it doesn't exist
+            and saves the snapshot in JSON format with a timestamped filename.
+        """
+        self.__write_to_log__("fabric", snapshot)
+
+    def unmapped_snapshot(self, snapshot:dict):
+        """
+        Export an unmapped snapshot to the specified directory.
+        Args:
+            snapshot (dict): The snapshot data to be exported.
+            This method creates a directory for unmapped snapshots if it doesn't exist
+            and saves the snapshot in JSON format with a timestamped filename.
+        """
+        self.__write_to_log__("unmapped", snapshot)
+
+    def __write_to_log__(self, type: str, data: dict):
+        """
+        Write the snapshot data to a log file in the specified directory.
+        Args:
+            type (str): The type of snapshot (e.g., "dbx", "fabric", "unmapped").
+            data (dict): The snapshot data to be written to the log file.
+        This method creates a directory for the specified type if it doesn't exist
+        and saves the snapshot in JSON format with a timestamped filename.
+        """
+        log_directory = f"{self.directory}/{type.lower()}_snapshot"
 
         os.makedirs(log_directory, exist_ok=True)
 
-        log_file = f"{log_directory}/log_{datetime.now().strftime('%Y%m%d%H%M%S')}.json"
+        log_file = f"{log_directory}/snapshot_{datetime.now().strftime('%Y_%m_%d_%H_%M_%S')}.json"
 
         with open(log_file, "w") as file:
             json.dump(data, file, indent=4)

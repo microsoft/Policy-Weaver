@@ -320,15 +320,15 @@ wheels = [
 
 [[package]]
 name = "databricks-sdk"
-version = "0.40.0"
+version = "0.57.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "google-auth" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f6/f2/913357137260f22e269c91465e44d2364755765a5445a85e94551c22f83e/databricks_sdk-0.40.0.tar.gz", hash = "sha256:48c6926ab840bd49e200122bccd72d9e7c823030949fd96a97d903df4fe2c2e7", size = 648096 }
+sdist = { url = "https://files.pythonhosted.org/packages/27/79/729b7a4abb687aa8bba8a909aa65cea3b9a42f5196ae4c9a28d081b7bff4/databricks_sdk-0.57.0.tar.gz", hash = "sha256:62c012001b6bd4d46e5a117b90e286c2c5a77e4f53f31985f253ce21ce986837", size = 774447 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/10/f8/190dce0b219596fe2cc0bb93b95e0498de17ce593aeb052949518287c15f/databricks_sdk-0.40.0-py3-none-any.whl", hash = "sha256:998a3d118b89abdfd7151a9f0f6065a865a3f84d6ba434118175f4e456d5fa73", size = 629735 },
+    { url = "https://files.pythonhosted.org/packages/51/db/6d34604be92a163309cbf1e3aeb11ea464012cdc33fe11132ea1eff2f072/databricks_sdk-0.57.0-py3-none-any.whl", hash = "sha256:a253bb4c7e00e43654af8b6e29ac79bee72d310e342ec73e148e4e591b75915f", size = 733790 },
 ]
 
 [[package]]
@@ -803,7 +803,7 @@ wheels = [
 
 [[package]]
 name = "policy-weaver"
-version = "0.1.0"
+version = "0.2.5"
 source = { editable = "." }
 dependencies = [
     { name = "azure-identity" },
@@ -819,7 +819,7 @@ dependencies = [
 requires-dist = [
     { name = "azure-identity", specifier = ">=1.19.0" },
     { name = "azure-storage-file-datalake", specifier = ">=12.18.1" },
-    { name = "databricks-sdk", specifier = ">=0.40.0" },
+    { name = "databricks-sdk", specifier = ">=0.57.0" },
     { name = "msgraph-sdk", specifier = ">=1.16.0" },
     { name = "pydantic", specifier = ">=2.10.5" },
     { name = "python-dotenv", specifier = ">=1.0.1" },
