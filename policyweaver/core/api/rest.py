@@ -119,4 +119,5 @@ class RestAPIProxy:
         if response.status_code in (200, 201, 202):
             return response
         else:
+            self.logger.error(f"REST API PROXY - ERROR - {response.status_code} - {response.text}")
             response.raise_for_status()

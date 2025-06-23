@@ -9,7 +9,7 @@ from policyweaver.plugins.databricks.model import DatabricksSourceMap
 config = DatabricksSourceMap.from_yaml("./settings.yaml")
 
 #configure logging for the client
-log_level = logging.DEBUG
+log_level = logging.INFO
 
 logger = logging.getLogger("POLICY_WEAVER")
 logger.setLevel(log_level)

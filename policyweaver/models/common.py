@@ -1,6 +1,9 @@
 from typing import Any
 from pydantic import BaseModel, ConfigDict
 
+import hashlib
+import json
+
 class CommonBaseModel(BaseModel):
     """
     Base model for all common models in the Policy Weaver application.
@@ -16,6 +19,11 @@ class CommonBaseModel(BaseModel):
         exclude_none=True,
     )
 
+    @property
+    def hash_sha256(self):
+        data = json.dumps(self.model_dump_json(exclude_none=True, exclude_unset=True), sort_keys=True)
+        return hashlib.sha256(data.encode('utf-8')).hexdigest()
+    
     def model_dump(self, **kwargs) -> dict[str, Any]:
         """
         Dumps the model to a dictionary, using aliases for field names.

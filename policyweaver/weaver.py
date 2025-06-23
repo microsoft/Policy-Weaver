@@ -48,7 +48,8 @@ class WeaverAgent:
     fabric_policy_role_prefix = "xxPOLICYWEAVERxx"
 
     @staticmethod
-    async def run(config: SourceMap) -> None:
+    async def run(config: SourceMap, source_snapshot_hndlr:callable = None, 
+                  fabric_snaphot_hndlr:callable = None, unmapped_policy_hndlr:callable = None) -> None:
         """
         Run the Policy Weaver synchronization process.
         This method initializes the environment, sets up the service principal,
@@ -59,6 +60,7 @@ class WeaverAgent:
         """
         Configuration.configure_environment(config)
         logger = logging.getLogger("POLICY_WEAVER")
+        logger.info("Policy Weaver Sync started...")
 
         ServicePrincipal.initialize(
             tenant_id=config.service_principal.tenant_id,
@@ -66,7 +68,17 @@ class WeaverAgent:
             client_secret=config.service_principal.client_secret
         )
     
-        logger.info("Policy Weaver Sync started...")
+        weaver = WeaverAgent(config)
+
+        if source_snapshot_hndlr:
+            weaver.set_source_snaphot_handler(source_snapshot_hndlr)
+        
+        if fabric_snaphot_hndlr:
+            weaver.set_fabric_snapshot_handler(fabric_snaphot_hndlr)
+        
+        if unmapped_policy_hndlr:
+            weaver.set_unmapped_policy_handler(unmapped_policy_hndlr)
+        
         match config.type:
             case PolicyWeaverConnectorType.UNITY_CATALOG:
                 src = DatabricksPolicyWeaver(config)
@@ -76,9 +88,8 @@ class WeaverAgent:
         logger.info(f"Running Policy Export for {config.type}: {config.source.name}...")
         policy_export = src.map_policy()
         
-        #self.logger.debug(policy_export.model_dump_json(indent=4))
+        weaver.source_snapshot_handler(policy_export)
 
-        weaver = WeaverAgent(config)
         await weaver.apply(policy_export)
         logger.info("Policy Weaver Sync complete!")
 
@@ -93,6 +104,10 @@ class WeaverAgent:
         self.logger = logging.getLogger("POLICY_WEAVER")
         self.fabric_api = FabricAPI(config.fabric.workspace_id)
         self.graph_client = MicrosoftGraphClient()
+
+        self._source_snapshot_handler = None
+        self._fabric_snapshot_handler = None
+        self._unmapped_policy_handler = None
 
     async def apply(self, policy_export: PolicyExport) -> None:
         """
@@ -139,13 +154,49 @@ class WeaverAgent:
                         policy, permission, FabricPolicyAccessType.READ
                     )
 
-                    if len(access_policy.members.entra_members) > 0:
-                        access_policies.append(access_policy)
+                    self.fabric_snapshot_handler(access_policy)
+                    access_policies.append(access_policy)
+
+        inserted_policies = 0
+        updated_policies = 0
+        deleted_policies = 0
+        unmanaged_policies = 0
 
         # Append policies not managed by PolicyWeaver
         if self.current_fabric_policies:
+            for p in self.current_fabric_policies:
+                if not p.name.startswith(self.fabric_policy_role_prefix):
+                    continue
+
+                # Check if the policy already exists
+                existing_policy = next((ap for ap in access_policies if ap.name == p.name), None)
+
+                if existing_policy:
+                    # Update existing policy
+                    self.logger.debug(f"Updating Policy: {p.name}")
+                    existing_policy.id = p.id
+                    updated_policies += 1
+                else:
+                    # Add new policy
+                    self.logger.debug(f"Inserting Policy: {p.name}")
+                    access_policies.append(p)
+                    inserted_policies += 1                   
+
             xapply = [p for p in self.current_fabric_policies if not p.name.startswith(self.fabric_policy_role_prefix)]
-            access_policies.extend(xapply)
+
+            if xapply:
+                self.logger.debug(f"Unmanaged Policies: {len(xapply)}")
+                unmanaged_policies += len(xapply)
+                access_policies.extend(xapply)
+            
+            for p in self.current_fabric_policies:
+                if p.name not in [ap.name for ap in access_policies]:
+                    deleted_policies += 1
+        else:
+            self.logger.debug("No current Fabric policies found.")
+            inserted_policies = len(access_policies)
+
+        self.logger.info(f"Policies Summary - Inserted: {inserted_policies}, Updated: {updated_policies}, Deleted: {deleted_policies}, Unmanaged: {unmanaged_policies}")
 
         dap_request = {
             "value": [
@@ -154,13 +205,11 @@ class WeaverAgent:
             ]
         }
 
-        self.logger.debug(json.dumps(dap_request))
-
         self.fabric_api.put_data_access_policy(
             self.config.fabric.mirror_id, json.dumps(dap_request)
         )
 
-        self.logger.info(f"Access Polices Updated: {len(access_policies)}")
+        self.logger.info(f"Total Data Access Polices Synced: {len(access_policies)}")
 
     def __get_current_access_policy__(self) -> None:
         """
@@ -181,7 +230,7 @@ class WeaverAgent:
             else:
                 raise e
             
-    def __get_table_mapping__(self, catalog, schema, table) -> str:
+    def __get_table_mapping__(self, catalog:str, schema:str, table:str) -> str:
         """
         Get the table mapping for the specified catalog, schema, and table.
         This method checks if the table is mapped in the configuration and returns
@@ -240,7 +289,7 @@ class WeaverAgent:
                             
         return graph_map
 
-    def __get_role_name__(self, policy) -> str:
+    def __get_role_name__(self, policy:PolicyExport) -> str:
         """
         Generate a role name based on the policy's catalog, schema, and table.
         This method constructs a role name by concatenating the catalog, schema, and table
@@ -255,9 +304,9 @@ class WeaverAgent:
         else:
             role_description = policy.catalog.upper()
 
-        return re.sub(r'[^a-zA-Z0-9]', '', f"xxPOLICYWEAVERxx{role_description}")
+        return re.sub(r'[^a-zA-Z0-9]', '', f"{self.fabric_policy_role_prefix}{role_description}")
     
-    def __build_data_access_policy__(self, policy, permission, access_policy_type) -> DataAccessPolicy:
+    def __build_data_access_policy__(self, policy:PolicyExport, permission:PermissionType, access_policy_type:FabricPolicyAccessType) -> DataAccessPolicy:
         """
         Build a Data Access Policy based on the provided policy and permission.
         This method constructs a Data Access Policy object that includes the role name,
@@ -309,8 +358,102 @@ class WeaverAgent:
                     ))
             else:
                 self.logger.warning(f"POLICY WEAVER - {o.lookup_id} not found in Microsoft Graph. Skipping...")
+                self._unmapped_policy_handler(o.lookup_id, policy)
                 continue
 
         self.logger.debug(f"POLICY WEAVER - Data Access Policy - {dap.name}: {dap.model_dump_json(indent=4)}")
         
         return dap
+    
+    def source_snapshot_handler(self, policy_export:PolicyExport) -> None:
+        """
+        Handle the source snapshot after it is generated.
+        This method is called to process the source snapshot, allowing for external archival,
+        logging or further processing of the snapshot.
+        Args:
+            policy_export (PolicyExport): The PolicyExport object containing the source snapshot data.
+        """
+        if self._source_snapshot_handler:
+            if policy_export:
+                snapshot = policy_export.model_dump_json(exclude_none=True, exclude_unset=True, indent=4)
+                self._source_snapshot_handler(snapshot)
+            else:
+                self._source_snapshot_handler(None)
+        else:
+            self.logger.debug("No source snapshot handler set. Skipping snapshot processing.")
+    
+    def fabric_snapshot_handler(self, access_policy:DataAccessPolicy) -> None:
+        """
+        Handle the fabric snapshot after it is generated.
+        This method is called to process the fabric snapshot, allowing for external archival,
+        logging or further processing of the snapshot.
+        Args:
+            access_policy (DataAccessPolicy): The DataAccessPolicy object containing the fabric snapshot data.
+        """
+        if self._fabric_snapshot_handler:
+            if access_policy:
+                snapshot = access_policy.model_dump_json(exclude_none=True, exclude_unset=True, indent=4)
+                self._fabric_snapshot_handler(snapshot)
+            else:
+                self._fabric_snapshot_handler(None)
+        else:
+            self.logger.debug("No fabric snapshot handler set. Skipping snapshot processing.")
+    
+    def unmapped_policy_handler(self, object_id:str, policy:PolicyExport) -> None:
+        """
+        Handle the unmapped policies after they are identified.
+        This method is called to process the unmapped policies, allowing for external archival,
+        logging or further processing of the unmapped policies.
+        Args:
+            json_unmapped_policies (str): The JSON string representation of the unmapped policies.
+        """
+        if self._unmapped_policy_handler:
+            if object_id and policy:
+                unmapped_policy = {
+                    "unmapped_object_id": object_id,
+                    "policy": policy.model_dump_json(exclude_none=True, exclude_unset=True, indent=4)
+                }
+                self._unmapped_policy_handler(unmapped_policy)
+            else:
+                self._unmapped_policy_handler(None)
+        else:
+            self.logger.debug("No unmapped policy handler set. Skipping unmapped policy processing.")
+        
+    def set_source_snaphot_handler(self, handler):
+        """
+        Set the source snapshot handler for the core class.
+        This handler is called after the snapshot is generated to allow for
+        external archival, logging or further processing of the snapshot.
+        This is useful for integrating with external systems or for custom logging.
+        Args:
+            handler: The handler to set for processing snapshots.
+            The handler should accept a single dictionary argument containing the snapshot data.
+            Example: def handler(snapshot: Dict): ...
+        """
+        self._source_snapshot_handler = handler
+
+    def set_fabric_snapshot_handler(self, handler):
+        """
+        Set the fabric snapshot handler for the core class.
+        This handler is called after the fabric snapshot is generated to allow for
+        external archival, logging or further processing of the snapshot.
+        This is useful for integrating with external systems or for custom logging.
+        Args:
+            handler: The handler to set for processing fabric snapshots.
+            The handler should accept a single dictionary argument containing the snapshot data.
+            Example: def handler(snapshot: Dict): ...
+        """
+        self._fabric_snapshot_handler = handler
+    
+    def set_unmapped_policy_handler(self, handler):
+        """
+        Set the unmapped policy handler for the core class.
+        This handler is called after unmapped policies are identified to allow for
+        external archival, logging or further processing of the unmapped policies.
+        This is useful for integrating with external systems or for custom logging.
+        Args:
+            handler: The handler to set for processing unmapped policies.
+            The handler should accept a single dictionary argument containing the unmapped policy data.
+            Example: def handler(unmapped_policy: Dict): ...
+        """
+        self._unmapped_policy_handler = handler

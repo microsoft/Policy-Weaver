@@ -96,8 +96,6 @@ class DatabricksPolicyWeaver(PolicyWeaverCore):
 
         policies = self.__build_export_policies__()
 
-        self.__write_to_log__(self.connector_type, self.workspace.model_dump())
-
         return PolicyExport(source=self.config.source, type=self.connector_type, policies=policies)
     
     def __get_three_part_key__(self, catalog:str, schema:str=None, table:str=None) -> str:

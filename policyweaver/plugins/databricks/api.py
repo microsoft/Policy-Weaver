@@ -196,7 +196,7 @@ class DatabricksAPIClient:
                         api_catalog.name, source.schemas
                     ),
                     privileges=self.__get_privileges__(
-                        SecurableType.CATALOG, api_catalog.name
+                        SecurableType.CATALOG.value, api_catalog.name
                     ),
                 )
             
@@ -281,7 +281,7 @@ class DatabricksAPIClient:
         self.logger.debug(f"DBX WORKSPACE Groups: {json.dumps(groups, default=pydantic_encoder, indent=4)}")
         return groups
 
-    def __get_privileges__(self, type: SecurableType, name) -> List[Privilege]:
+    def __get_privileges__(self, type:str, name) -> List[Privilege]:
         """
         Retrieves the privileges for a given securable type and name.
         Args:
@@ -349,7 +349,7 @@ class DatabricksAPIClient:
                         name=s.name,
                         tables=tbls,
                         privileges=self.__get_privileges__(
-                            SecurableType.SCHEMA, s.full_name
+                            SecurableType.SCHEMA.value, s.full_name
                         ),
                         mask_functions=self.__get_column_mask_functions__(
                             catalog, s.name, tbls
@@ -394,7 +394,7 @@ class DatabricksAPIClient:
                     for c in t.columns
                     if c.mask
                 ],
-                privileges=self.__get_privileges__(SecurableType.TABLE, t.full_name),
+                privileges=self.__get_privileges__(SecurableType.TABLE.value, t.full_name),
             )
             for t in api_tables
         ]
@@ -429,7 +429,7 @@ class DatabricksAPIClient:
             Function(
                 name=f.full_name,
                 sql=f.routine_definition,
-                privileges=self.__get_privileges__(SecurableType.FUNCTION, f.full_name),
+                privileges=self.__get_privileges__(SecurableType.FUNCTION.value, f.full_name),
             )
             for f in self.workspace_client.functions.list(
                 catalog_name=catalog, schema_name=schema
