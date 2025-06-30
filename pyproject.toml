@@ -6,7 +6,8 @@ readme = "README.md"
 requires-python = ">=3.11.8"
 authors = [
      {name = "Tonio Lora", email = "tonio.lora@microsoft.com"},
-     {name = "Christopher Price", email = "chriprice@microsoft.com"}
+     {name = "Christopher Price", email = "chriprice@microsoft.com"},
+     {name = "Emily Nguyen", email="Emily.Nguyen@microsoft.com"}
 ]
 dependencies = [
     "azure-identity>=1.19.0",
@@ -17,12 +18,14 @@ dependencies = [
     "python-dotenv>=1.0.1",
     "pyyaml>=6.0.2",
 ]
+
 classifiers = [
   "Development Status :: 4 - Beta",
   "Intended Audience :: Developers",
   "Intended Audience :: Information Technology",
   "Intended Audience :: System Administrators",
   "Topic :: Software Development",
+  "License :: OSI Approved :: MIT License",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.8",
@@ -31,7 +34,7 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12"
 ]
-license = "MIT"
+
 license-files = ["LICENSE"]
 keywords = ["Fabric", "Fabric Access Policy", "Databricks", "BigQuery", "Snowflake"]
 
@@ -130,3 +133,9 @@ Homepage = "https://github.com/microsoft/Policy-Weaver"
 Documentation = "https://github.com/microsoft/Policy-Weaver/blob/main/docs/PolicyWeaver.md"
 Repository = "https://github.com/microsoft/Policy-Weaver.git"
 Issues = "https://github.com/microsoft/Policy-Weaver/issues"
+
+[project.optional-dependencies]
+dev = [
+    "ruff==0.7.1",
+    "sphinx>=7.1.2"
+]
