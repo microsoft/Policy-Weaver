@@ -403,5 +403,8 @@ FodyWeavers.xsd
 #Policy Weaver Settings file
 settings.yaml
 
+# UV Generation
+build/*
+
 # Docs
 docs/build/*
