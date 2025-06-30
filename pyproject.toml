@@ -6,7 +6,8 @@ readme = "README.md"
 requires-python = ">=3.11.8"
 authors = [
      {name = "Tonio Lora", email = "tonio.lora@microsoft.com"},
-     {name = "Christopher Price", email = "chriprice@microsoft.com"}
+     {name = "Christopher Price", email = "chriprice@microsoft.com"},
+     {name = "Emily Nguyen", email="Emily.Nguyen@microsoft.com"}
 ]
 dependencies = [
     "azure-identity>=1.19.0",
