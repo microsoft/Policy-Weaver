@@ -21,6 +21,12 @@ class CommonBaseModel(BaseModel):
 
     @property
     def hash_sha256(self):
+        """
+        Computes the SHA-256 hash of the model's JSON representation.
+        This is useful for generating a unique identifier for the model based on its content.
+        Returns:
+            str: The SHA-256 hash of the model's JSON representation.
+        """
         data = json.dumps(self.model_dump_json(exclude_none=True, exclude_unset=True), sort_keys=True)
         return hashlib.sha256(data.encode('utf-8')).hexdigest()
     

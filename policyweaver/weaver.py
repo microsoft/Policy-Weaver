@@ -45,8 +45,22 @@ class WeaverAgent:
         weaver = Weaver(config)
         await weaver.apply(policy_export)
     """
-    fabric_policy_role_prefix = "xxPOLICYWEAVERxx"
+    __FABRIC_POLICY_ROLE_SUFFIX = "PolicyWeaver"
+    __FABRIC_DEFAULT_READER_ROLE = "DefaultReader"
 
+    @property
+    def FabricPolicyRoleSuffix(self) -> str:
+        """
+        Get the Fabric policy role suffix from the configuration.
+        If the suffix is not set in the configuration, it defaults to "PolicyWeaver".
+        Returns:
+            str: The Fabric policy role suffix.
+        """
+        if self.config and self.config.fabric and self.config.fabric.fabric_role_suffix:
+            return self.config.fabric.fabric_role_suffix
+        else:
+            return self.__FABRIC_POLICY_ROLE_SUFFIX
+    
     @staticmethod
     async def run(config: SourceMap, source_snapshot_hndlr:callable = None, 
                   fabric_snaphot_hndlr:callable = None, unmapped_policy_hndlr:callable = None) -> None:
@@ -168,11 +182,11 @@ class WeaverAgent:
         # Append policies not managed by PolicyWeaver
         if self.current_fabric_policies:
             for p in self.current_fabric_policies:
-                if not p.name.startswith(self.fabric_policy_role_prefix):
+                if not self.FabricPolicyRoleSuffix in p.name:
                     continue
 
                 # Check if the policy already exists
-                existing_policy = next((ap for ap in access_policies if ap.name == p.name), None)
+                existing_policy = next((ap for ap in access_policies if ap.name.lower() == p.name.lower()), None)
 
                 if existing_policy:
                     # Update existing policy
@@ -185,10 +199,16 @@ class WeaverAgent:
                     access_policies.append(p)
                     inserted_policies += 1                   
 
-            xapply = [p for p in self.current_fabric_policies if not p.name.startswith(self.fabric_policy_role_prefix)]
+            xapply = [p for p in self.current_fabric_policies if not p.name.lower().endswith(self.FabricPolicyRoleSuffix.lower())]
 
             if xapply:
                 self.logger.debug(f"Unmanaged Policies: {len(xapply)}")
+
+                if self.config.fabric.delete_default_reader_role:
+                    self.logger.debug("Deleting default reader role as configured...")
+                    for p in xapply:
+                        xapply = [p for p in xapply if not p.name.lower() == self.__FABRIC_DEFAULT_READER_ROLE.lower()]
+
                 unmanaged_policies += len(xapply)
                 access_policies.extend(xapply)
             
@@ -306,11 +326,13 @@ class WeaverAgent:
             str: The generated role name in the format "xxPOLICYWEAVERxx<CATALOG><SCHEMA><TABLE>".
         """
         if policy.catalog_schema:
-            role_description = f"{policy.catalog_schema.upper()}x{'' if not policy.table else policy.table.upper()}"
+            role_description = f"{policy.catalog_schema.replace(' ', '')} {'' if not policy.table else policy.table.replace(' ', '')}"
         else:
-            role_description = policy.catalog.upper()
+            role_description = policy.catalog.replace(" ", "")
 
-        return re.sub(r'[^a-zA-Z0-9]', '', f"{self.fabric_policy_role_prefix}{role_description}")
+        role_name = f"{role_description.title()}{self.FabricPolicyRoleSuffix}".replace(" ", "")
+
+        return re.sub(r'[^a-zA-Z0-9]', '', role_name)
     
     def __build_data_access_policy__(self, policy:PolicyExport, permission:PermissionType, access_policy_type:FabricPolicyAccessType) -> DataAccessPolicy:
         """
