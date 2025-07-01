@@ -51,12 +51,17 @@ class FabricConfig(CommonBaseModel):
         workspace_name (str): The name of the Azure workspace.
         mirror_id (str): The ID of the mirror in the fabric.
         mirror_name (str): The name of the mirror in the fabric.
+        fabric_role_suffix (str): The suffix for the fabric role, default is "PWPolicy".
+        delete_default_reader_role (bool): Flag to indicate whether to delete the default reader role,
+            default is False.
     """
     tenant_id: Optional[str] = Field(alias="tenant_id", default=None)
     workspace_id: Optional[str] = Field(alias="workspace_id", default=None)
     workspace_name: Optional[str] = Field(alias="workspace_name", default=None)
     mirror_id: Optional[str] = Field(alias="mirror_id", default=None)
     mirror_name: Optional[str] = Field(alias="mirror_name", default=None)
+    fabric_role_suffix: Optional[str] = Field(alias="fabric_role_suffix", default="PWPolicy")
+    delete_default_reader_role: Optional[bool] = Field(alias="delete_default_reader_role", default=False)
 
 class ServicePrincipalConfig(CommonBaseModel):
     """

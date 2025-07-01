@@ -203,6 +203,7 @@ class DatabricksAPIClient:
             self.logger.debug(f"DBX WORKSPACE Policy Map for {api_catalog.name}: {json.dumps(self.__workspace, default=pydantic_encoder, indent=4)}")
             return (self.__account, self.__workspace)
         except NotFound:
+            self.logger.error(f"DBX WORKSPACE Catalog {source.name} not found in workspace {source.url}.")
             return None
 
     def __get_workspace_users__(self) -> List[DatabricksUser]:
