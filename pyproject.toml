@@ -1,22 +1,24 @@
 [project]
 name = "policy-weaver"
-version = "0.1.2"
+version = "0.2.5"
 description = "Policy Weaver for Microsoft Fabric"
 readme = "README.md"
 requires-python = ">=3.11.8"
 authors = [
      {name = "Tonio Lora", email = "tonio.lora@microsoft.com"},
-     {name = "Christopher Price", email = "chriprice@microsoft.com"}
+     {name = "Christopher Price", email = "chriprice@microsoft.com"},
+     {name = "Emily Nguyen", email="Emily.Nguyen@microsoft.com"}
 ]
 dependencies = [
     "azure-identity>=1.19.0",
     "azure-storage-file-datalake>=12.18.1",
-    "databricks-sdk>=0.40.0",
+    "databricks-sdk>=0.57.0",
     "msgraph-sdk>=1.16.0",
     "pydantic>=2.10.5",
     "python-dotenv>=1.0.1",
     "pyyaml>=6.0.2",
 ]
+
 classifiers = [
   "Development Status :: 4 - Beta",
   "Intended Audience :: Developers",
@@ -32,14 +34,15 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12"
 ]
-license = {text = "MIT License"}
+
+license-files = ["LICENSE"]
 keywords = ["Fabric", "Fabric Access Policy", "Databricks", "BigQuery", "Snowflake"]
 
 [tool.setuptools]
 py-modules = []
 
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools >= 77"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
@@ -130,3 +133,9 @@ Homepage = "https://github.com/microsoft/Policy-Weaver"
 Documentation = "https://github.com/microsoft/Policy-Weaver/blob/main/docs/PolicyWeaver.md"
 Repository = "https://github.com/microsoft/Policy-Weaver.git"
 Issues = "https://github.com/microsoft/Policy-Weaver/issues"
+
+[project.optional-dependencies]
+dev = [
+    "ruff==0.7.1",
+    "sphinx>=7.1.2"
+]

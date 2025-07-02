@@ -1,25 +1,19 @@
-## Disclaimer: The following prerequisites apply when using the acceleator PolicyWeaver for Azure Databricks and Microsoft Fabric
+## Disclaimer: The following prerequisites apply for Policy Weaver for Azure Databricks and Microsoft Fabric
 
-PolicyWeaver is an open source library and available on [PyPi](https://pypi.org/project/policy-weaver/). It is intended to accelerate and streamline the sync of data access policies from Azure Databrick and apply it to Microsoft Fabric when using "Mirrored Azure Databricks Catalog" for data access. It can be installed via `pip install policy-weaver`.
+PolicyWeaver is available on [PyPi](https://pypi.org/project/policy-weaver/) and can be installed via `pip install policy-weaver`.
 
-### Create a Microsoft Entra Application and Service Principal account
-Before we start using PolicyWeaver, it is necessary to create an Entra Application in Azure for identity management. When you register a new application in Microsoft Entra ID, a service principal is automatically created for the app registration and it is the app's identity in the Microsoft Entra tenant. You can restrict access to resources like Azure Databricks and Fabric by the roles that you assign to the service principal. Follow the steps [here](https://learn.microsoft.com/en-us/entra/identity-platform/howto-create-service-principal-portal) to register an application in Microsoft Entra ID and create a service principal account. 
+### Create an Azure Service Principal account
+Before we start using PolicyWeaver, it is necessary to create an Azure service principal on the [Azure Portal](https://portal.azure.com/) to authenticate to both Microsoft Fabric and Azure Databricks. Ensure the service principal has the following permissions for the source (Azure Databricks and target (Microsoft Fabric) system:
 
-
-1. For Microsoft Fabric (you have to have admin rights): 
-    - create a Fabric workspace identity as stated [here under step 1](https://learn.microsoft.com/en-us/fabric/security/workspace-identity-authenticate#step-1-create-the-workspace-identity)
-    - the service principal needs to be a workspace admin in Fabric workspace
-    - enable service principal authentication in Fabric as documented [here](https://learn.microsoft.com/en-us/fabric/admin/enable-service-principal-admin-apis)
-    - give the service principal access to your Fabric workspace and [assign the "Contributor" role](https://learn.microsoft.com/en-us/fabric/fundamentals/give-access-workspaces)
-
-  2. For Azure Databricks (you have to have admin rights):
-      - ensure Unity Catalog is enabled on your Azure Databricks workspace
-      -  [enable external data access](https://learn.microsoft.com/en-us/azure/databricks/external-access/admin#enable-external-data-access-on-the-metastore) on the metastore
-      - grant the service principal "use external schema" and "manage" privilege
+1. For Azure Databricks: In the Azure Databricks...
+2. For Microsoft Fabric: the service principal needs to be a workspace admin in Fabric workspace
 
 ### Create a Mirrored Azure Databricks Catalog item in Microsoft Fabric
-To access Azure Databricks tables in Microsoft Fabric, a new item in Fabric called [Mirrored Azure Databricks Catalog](https://learn.microsoft.com/en-us/fabric/database/mirrored-database/azure-databricks) which is currently in public preview, comes in handy. The metastore of Azure Databricks gets replicated in Fabric, while the delta parquet tables are being virtualized (shortcut) from Azure Databricks into Fabric. You can find the tutorial how to create the Mirroed Azure Databricks Catalog item in Fabric and how to select tables [here](https://learn.microsoft.com/en-us/fabric/database/mirrored-database/azure-databricks-tutorial#create-a-mirrored-database-from-azure-databricks). Have in mind, that you can only select schemas and tables that you have access to.
+To access Azure Databricks tables in Microsoft Fabric, a new item in Fabric called [Mirrored Azure Databricks Catalog](https://learn.microsoft.com/en-us/fabric/database/mirrored-database/azure-databricks) which is currently in public preview, comes in handy. The metastore of Azure Databricks gets replicated in Fabric, while the delta parquet tables are being virtualized (shortcut) from Azure Databricks into Fabric. You can find the tutorial how to create the Mirroed Azure Databricks Catalog item in Fabric and how to select tables [here](https://learn.microsoft.com/en-us/fabric/database/mirrored-database/azure-databricks-tutorial#create-a-mirrored-database-from-azure-databricks). Have in mind, that you can only select tables that you have access to.
 
+
+### Create a Microsoft Fabric Lakehouse
+As stated in README, we are using the Microsoft Fabric OneLake access roles, currently in Public Preview. Data access role security DOES NOT YET apply to the Mirrored Azure Databricks Catalog item in Fabric. Therefore, we create a Lakehouse and will shortcut the tables from Mirrored Azure Databricks Catalog to a Fabric Lakehouse to synchronize access policies between Azure Databricks and Fabric. [Here](https://learn.microsoft.com/en-us/fabric/data-engineering/create-lakehouse) is stated how to create a Fabric Lakehouse.
 
 
 ### Create a yaml configuration file

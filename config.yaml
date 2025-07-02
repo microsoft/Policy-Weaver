@@ -1,0 +1,17 @@
+fabric:
+  mirror_id: TONIO24ab9e82-2461-4728-b42f-1bc82cc1d9df
+  mirror_name: main
+  workspace_id: TONIOf20bd8a3-c401-4a28-a94a-55ae522d0393
+  tenant_id: TONIO1b9fbd2a-2ca6-40df-a9f8-9ab3a69e9dcb
+service_principal:
+  client_id: TONIOe4f8603a-4ea1-442f-aa50-38880c6a285b
+  client_secret: TONIO6I48Q~eqzBkKajY-GYOQami6KEzvKwUOx48xrcti
+  tenant_id: TONIO1b9fbd2a-2ca6-40df-a9f8-9ab3a69e9dcb
+source:
+  name: main
+  # schemas:
+  # - name: default
+  #   tables:
+  #   - churn
+type: UNITY_CATALOG
+workspace_url: https://adb-2482044815297001.1.azuredatabricks.net/

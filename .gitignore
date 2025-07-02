@@ -388,6 +388,8 @@ FodyWeavers.xsd
 # Local History for Visual Studio Code
 .history/
 
+*.egg-info/
+
 # Windows Installer files from build outputs
 *.cab
 *.msi
@@ -400,3 +402,9 @@ FodyWeavers.xsd
 
 #Policy Weaver Settings file
 settings.yaml
+
+# UV Generation
+build/*
+
+# Docs
+docs/build/*
