@@ -3,10 +3,18 @@
 PolicyWeaver is available on [PyPi](https://pypi.org/project/policy-weaver/) and can be installed via `pip install policy-weaver`.
 
 ### Create an Azure Service Principal account
-Before we start using PolicyWeaver, it is necessary to create an Azure service principal on the [Azure Portal](https://portal.azure.com/) to authenticate to both Microsoft Fabric and Azure Databricks. Ensure the service principal has the following permissions for the source (Azure Databricks and target (Microsoft Fabric) system:
+Before we start using PolicyWeaver, it is necessary to create an Azure service principal on the [Azure Portal](https://portal.azure.com/) to authenticate to both Microsoft Fabric and Azure Databricks. 
 
-1. For Azure Databricks: In the Azure Databricks...
-2. For Microsoft Fabric: the service principal needs to be a workspace admin in Fabric workspace
+Ensure the service principal has the following permissions in Azure Databricks and Microsoft Fabric. Attention: You need to have admin rights.
+
+1. Azure Databricks
+    -  Under workspace settings > Identity & Access > Manage Service Principals > add your Azure Service Principal 
+        - once added, click on the Service Principal name and switch to the "Permissions" tab to grant "Service Principal:Manager" role
+        - switch to the "Secret" tab to create an OAuth secret for the config.yaml file later (note it down)
+    - Under account admin console > User Management > change tab to Service Principals > add your Azure Service Principal
+        - switch to "Roles" tab and toggle to activate the "Account admin" role 
+        - switch to the "Permissions" tab and ensure your Service Principal has the "Service Principal:Manager" permission
+2. Microsoft Fabric
 
 ### Create a Mirrored Azure Databricks Catalog item in Microsoft Fabric
 To access Azure Databricks tables in Microsoft Fabric, a new item in Fabric called [Mirrored Azure Databricks Catalog](https://learn.microsoft.com/en-us/fabric/database/mirrored-database/azure-databricks) which is currently in public preview, comes in handy. The metastore of Azure Databricks gets replicated in Fabric, while the delta parquet tables are being virtualized (shortcut) from Azure Databricks into Fabric. You can find the tutorial how to create the Mirroed Azure Databricks Catalog item in Fabric and how to select tables [here](https://learn.microsoft.com/en-us/fabric/database/mirrored-database/azure-databricks-tutorial#create-a-mirrored-database-from-azure-databricks). Have in mind, that you can only select tables that you have access to.
@@ -24,18 +32,21 @@ You can use VS Code or any other tool to create a yaml file with the following c
 
 ```yml
 fabric:
-  lakehouse_name: <lakehouse_name_created_above>
-  workspace_id: <your_Fabric_workspace_id>
+  mirror_id: <your fabric mirrored item id>
+  mirror_name: <your fabric mirrored item name>
+  workspace_id: <your fabric workspace id>
+  tenant_id: <your fabric tenant id>
+  fabric_role_suffix: PWPolicy
+  delete_default_reader_role: true
 service_principal:
-  client_id: <sp_client_id>
-  client_secret: <sp_client_secret>
-  tenant_id: <sp_tenant_id>
+  client_id: <your azure SP client id>
+  client_secret: <your azure SP secret>
+  tenant_id: <your azure tenant id again>
 source:
-  name: <source_warehouse_catalog>
-  schemas:
-  - name: <schema_1>
-    tables:
-    - <table_1>
+  name: <your databricks catalog name as named in Azure Databricks>
 type: UNITY_CATALOG
-workspace_url: <databricks_workspace_url>
+databricks:
+  workspace_url: https://adb-xxxxxxxxxxx.azuredatabricks.net/
+  account_id: <your databricks account id>
+  account_api_token: <your databricks secret> 
 ```
