@@ -5,7 +5,7 @@ from policyweaver.weaver import WeaverAgent
 from policyweaver.plugins.databricks.model import DatabricksSourceMap
 
 #Load config
-config = DatabricksSourceMap.from_yaml("./settings.yaml")
+config = DatabricksSourceMap.from_yaml("config.yaml")
 
 #configure logging for the client (DEBUG for verbose output)
 log_level = logging.DEBUG

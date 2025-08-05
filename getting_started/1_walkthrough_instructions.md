@@ -18,17 +18,17 @@ You can stay in the Fabric Lakehouse and click to create a new Notebook at the t
 Using the Notebook in Fabric, paste the following code:
 
 ```python
-pip install policy-weaver
+%pip install policy-weaver --quiet
 ``` 
 
 ```python
 #import the PolicyWeaver library
-from policyweaver.policyweaver import Weaver
-from policyweaver.models.databricksmodel import DatabricksSourceMap
+from policyweaver.weaver import WeaverAgent
+from policyweaver.plugins.databricks.model import DatabricksSourceMap
 
-#define the config
-config = DatabricksSourceMap.from_yaml('path_to_yaml_config_file')
+#Load config
+config = DatabricksSourceMap.from_yaml("path_to_your_config.yaml")
 
 #run the PolicyWeaver
-await Weaver.run(config)
+await WeaverAgent.run(config)
 ```

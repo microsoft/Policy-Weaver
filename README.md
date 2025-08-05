@@ -11,7 +11,7 @@ While Fabric Mirroring provides all the capabilities required to automatically k
 Designed as a pluggable framework, **Policy Weaver** provides connectors that handle the export of access policies from a configured source before applying them to the mirror data within Fabric.
 
 Policy Weaver will initially supports the following sources:
-- [Azure Databricks Unity Catalog]()
+- [Azure Databricks Unity Catalog](getting_started/0_prerequisites.md)
 - BigQuery
 - Snowflake
 
@@ -20,7 +20,7 @@ Policy Weaver will initially supports the following sources:
 > for row filter and column-masking policies will be added in a future version.
 
 
-For more information on prerequisites and instructions on getting started, please see the [Getting Started]() documentation. 
+For more information on prerequisites and instructions on getting started, please see the [Getting Started](getting_started/0_prerequisites.md) documentation. 
 
 ## OneLake Data Access Roles Overview
 
