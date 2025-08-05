@@ -266,7 +266,7 @@ class WeaverAgent:
             str: The table path in the format "Tables/{schema}/{table}" if mapped, otherwise None.
         """
         if not table:
-            if schema is not None:
+            if schema:
                 return f"Tables/{schema}"
             return None
 
