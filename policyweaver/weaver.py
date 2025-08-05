@@ -269,6 +269,8 @@ class WeaverAgent:
             str: The table path in the format "Tables/{schema}/{table}" if mapped, otherwise None.
         """
         if not table:
+            if schema is not None:
+                return f"Tables/{schema}"
             return None
 
         if self.config.mapped_items:
