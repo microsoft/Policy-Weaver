@@ -1,17 +1,18 @@
 fabric:
-  mirror_id: <<your_fabric_mirror_item_id>
-  mirror_name: main
-  workspace_id: <your_fabric_workspace_id>
-  tenant_id: <your_fabric_tenant_id>
+  mirror_id: <your fabric mirrored item id>
+  mirror_name: <your fabric mirrored item name>
+  workspace_id: <your fabric workspace id>
+  tenant_id: <your fabric tenant id>
+  fabric_role_suffix: PWPolicy
+  delete_default_reader_role: true
 service_principal:
-  client_id: <your_azure_sp_client_id>
-  client_secret: <your_azure_sp_secret_id>
-  tenant_id: <your_azure_tenant_id>
+  client_id: <your azure SP client id>
+  client_secret: <your azure SP secret>
+  tenant_id: <your azure tenant id again>
 source:
-  name: main
-  # schemas:
-  # - name: default
-  #   tables:
-  #   - churn
+  name: <your databricks catalog name as named in Azure Databricks>
 type: UNITY_CATALOG
-workspace_url: https://adb-2482044815297001.1.azuredatabricks.net/
+databricks:
+  workspace_url: https://adb-xxxxxxxxxxx.azuredatabricks.net/
+  account_id: <your databricks account id>
+  account_api_token: <your databricks secret> 
