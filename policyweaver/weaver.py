@@ -174,7 +174,7 @@ class WeaverAgent:
                     self.fabric_snapshot_handler(access_policy)
                     access_policies.append(access_policy)
 
-        inserted_policies = 0
+        inserted_policies = len(access_policies)
         updated_policies = 0
         deleted_policies = 0
         unmanaged_policies = 0
@@ -193,11 +193,9 @@ class WeaverAgent:
                     self.logger.debug(f"Updating Policy: {p.name}")
                     existing_policy.id = p.id
                     updated_policies += 1
+                    inserted_policies -= 1
                 else:
-                    # Add new policy
-                    self.logger.debug(f"Inserting Policy: {p.name}")
-                    access_policies.append(p)
-                    inserted_policies += 1                   
+                    self.logger.debug(f"Removing Policy: {p.name}")
 
             xapply = [p for p in self.current_fabric_policies if not p.name.lower().endswith(self.FabricPolicyRoleSuffix.lower())]
 
@@ -217,7 +215,6 @@ class WeaverAgent:
                     deleted_policies += 1
         else:
             self.logger.debug("No current Fabric policies found.")
-            inserted_policies = len(access_policies)
 
         self.logger.info(f"Policies Summary - Inserted: {inserted_policies}, Updated: {updated_policies}, Deleted: {deleted_policies}, Unmanaged: {unmanaged_policies}")
 
@@ -269,6 +266,8 @@ class WeaverAgent:
             str: The table path in the format "Tables/{schema}/{table}" if mapped, otherwise None.
         """
         if not table:
+            if schema:
+                return f"Tables/{schema}"
             return None
 
         if self.config.mapped_items:
