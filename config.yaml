@@ -1,7 +1,7 @@
 keyvault:
   use_key_vault: <true if you use a key vault and secret names, false if you provide the secrets>
   name: <nameofkeyvault>
-  authentication_method: <authentication method: currently possible: azure_cli>
+  authentication_method: <authentication method: currently possible: azure_cli or fabric_notebook>
 fabric:
   mirror_id: <your fabric mirrored item id>
   mirror_name: <your fabric mirrored item name>

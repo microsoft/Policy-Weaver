@@ -1,3 +1,4 @@
+from logging import config
 import os
 from uuid import uuid4
 import requests
@@ -47,8 +48,10 @@ class Configuration:
         if not(config.keyvault.name and config.keyvault.authentication_method):
             raise ValueError("Key Vault name and authentication method must be provided.")
         
+        key_vault_name = config.keyvault.name
+
         if config.keyvault.authentication_method == "azure_cli":
-            key_vault_name = config.keyvault.name
+            
             credential = AzureCLIClient()
             credential.initialize()
             
@@ -70,8 +73,22 @@ class Configuration:
                     return response.json()["value"]
                 else:
                     raise Exception(f"Failed to retrieve secret {secret_name}: {response.status_code} - {response.text}")
-                
-        
+
+        elif config.keyvault.authentication_method == "fabric_notebook":
+            def get_secret(secret_name):
+                """
+                Retrieve a secret from Azure Key Vault using the Fabric Notebook credentials.
+                Args:
+                    secret_name (str): The name of the secret to retrieve.
+                Returns:
+                    str: The value of the secret.
+                """
+                # Assuming notebookutils is available in the environment
+                return notebookutils.credentials.getSecret(f'https://{key_vault_name}.vault.azure.net/', secret_name)
+            
+        else:
+            raise ValueError("Unsupported Key Vault authentication method. Use 'azure_cli' or 'fabric_notebook'.")
+
         config.service_principal.tenant_id = get_secret(config.service_principal.tenant_id)
         config.service_principal.client_id = get_secret(config.service_principal.client_id)
         config.service_principal.client_secret = get_secret(config.service_principal.client_secret)
