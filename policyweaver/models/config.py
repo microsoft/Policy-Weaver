@@ -75,6 +75,19 @@ class ServicePrincipalConfig(CommonBaseModel):
     client_id: Optional[str] = Field(alias="client_id", default=None)
     client_secret: Optional[str] = Field(alias="client_secret", default=None)
 
+class KeyVaultConfig(CommonBaseModel):
+    """
+    Configuration for Azure Key Vault.
+    Attributes:
+        use_key_vault (bool): Flag to indicate whether to use Azure Key Vault.
+        name (str): The name of the Key Vault.
+        authentication_method (str): The authentication method to use for accessing the Key Vault.
+    """
+    use_key_vault: Optional[bool] = Field(alias="use_key_vault", default=False)
+    name: Optional[str] = Field(alias="name", default=None)
+    authentication_method: Optional[str] = Field(alias="authentication_method", default=None)
+
+
 class CatalogItem(CommonBaseModel):
     """
     Base model for catalog items.
@@ -126,6 +139,7 @@ class SourceMap(CommonBaseModel):
     fabric: Optional[FabricConfig] = Field(alias="fabric", default=None)
     service_principal: Optional[ServicePrincipalConfig] = Field(alias="service_principal", default=None)
     mapped_items: Optional[List[SourceMapItem]] = Field(alias="mapped_items", default=None)
+    keyvault: Optional[KeyVaultConfig] = Field(alias="keyvault", default=None)
 
     _default_paths = ['./settings.yaml']
 

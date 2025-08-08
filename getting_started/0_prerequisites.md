@@ -31,22 +31,26 @@ You can use VS Code or any other tool to create a yaml file with the following c
 
 
 ```yml
+keyvault:
+  use_key_vault: <true if you use a key vault and secret names, false if you provide the secrets>
+  name: <nameofkeyvault>
+  authentication_method: <authentication method: currently possible: azure_cli or fabric_notebook>
 fabric:
-  mirror_id: <your fabric mirrored item id>
-  mirror_name: <your fabric mirrored item name>
-  workspace_id: <your fabric workspace id>
-  tenant_id: <your fabric tenant id>
+  mirror_id: <your fabric mirrored item id>
+  mirror_name: <your fabric mirrored item name>
+  workspace_id: <your fabric workspace id>
+  tenant_id: <your fabric tenant id>
   fabric_role_suffix: PWPolicy
   delete_default_reader_role: true
 service_principal:
-  client_id: <your azure SP client id>
-  client_secret: <your azure SP secret>
-  tenant_id: <your azure tenant id again>
+  client_id: <Depending on the keyvault setting: the keyvault secret name or your azure SP client id>
+  client_secret: <Depending on the keyvault setting: the keyvault secret name or your azure SP secret>
+  tenant_id: <Depending on the keyvault setting: the keyvault secret name or your azure tenant id again>
 source:
-  name: <your databricks catalog name as named in Azure Databricks>
+  name: <your databricks catalog name as named in Azure Databricks>
 type: UNITY_CATALOG
 databricks:
-  workspace_url: https://adb-xxxxxxxxxxx.azuredatabricks.net/
-  account_id: <your databricks account id>
-  account_api_token: <your databricks secret> 
+  workspace_url: https://adb-xxxxxxxxxxx.azuredatabricks.net/
+  account_id: <your databricks account id>
+  account_api_token: <Depending on the keyvault setting: the keyvault secret name or your databricks secret>
 ```
