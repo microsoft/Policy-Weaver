@@ -5,6 +5,10 @@ import requests
 
 from policyweaver.models.config import SourceMap
 from policyweaver.core.auth import AzureCLIClient
+try:
+    import notebookutils
+except:
+    pass
 
 class Configuration:
     """
