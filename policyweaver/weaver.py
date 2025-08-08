@@ -96,6 +96,8 @@ class WeaverAgent:
         match config.type:
             case PolicyWeaverConnectorType.UNITY_CATALOG:
                 src = DatabricksPolicyWeaver(config)
+            case PolicyWeaverConnectorType.SNOWFLAKE:
+                src = SnowflakePolicyWeaver(config)
             case _:
                 pass
         
