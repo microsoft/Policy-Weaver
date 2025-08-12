@@ -74,7 +74,7 @@ class DatabricksPolicyWeaver(PolicyWeaverCore):
         if not config.databricks.account_api_token:
             raise ValueError("Databricks account API token is required in the configuration.")
 
-    def map_policy(self) -> PolicyExport:
+    def map_policy(self, policy_mapping: str = "table_based") -> PolicyExport:
         """
         Maps the policies from the Databricks Unity Catalog to the Policy Weaver framework.
         This method collects privileges from the workspace catalog, schemas, and tables,
@@ -95,15 +95,17 @@ class DatabricksPolicyWeaver(PolicyWeaverCore):
 
         self.__apply_access_model__()
 
-        policies = self.__build_export_role_policies__()
-        return RolePolicyExport(
-            source=self.config.source,
-            type=self.connector_type,
-            policies=policies
+        if policy_mapping == "role_based":
+            policies = self.__build_export_role_policies__()
+            return RolePolicyExport(
+                source=self.config.source,
+                type=self.connector_type,
+                policies=policies
         )
-        # policies = self.__build_export_policies__()
 
-        # return PolicyExport(source=self.config.source, type=self.connector_type, policies=policies)
+        policies = self.__build_export_policies__()
+
+        return PolicyExport(source=self.config.source, type=self.connector_type, policies=policies)
     
     def __get_three_part_key__(self, catalog:str, schema:str=None, table:str=None) -> str:
         """
@@ -341,14 +343,11 @@ class DatabricksPolicyWeaver(PolicyWeaverCore):
             ps.catalog = cat_item.catalog
             ps.catalog_schema = cat_item.catalog_schema
             ps.table = cat_item.table
+            ps.name = PermissionType.SELECT
+            ps.state = PermissionState.GRANT
 
             permission_scopes.append(ps)
 
-        permission = Permission(
-                    name=PermissionType.SELECT,
-                    state=PermissionState.GRANT,
-                    objects=[])
-        
         members = []
 
         if iam_type == IamType.GROUP:
@@ -367,7 +366,7 @@ class DatabricksPolicyWeaver(PolicyWeaverCore):
                     members = [s.id]
                     break
 
-
+        permissionobjects = []
         for member_id in members:
             po = PermissionObject()
             member = None
@@ -389,12 +388,15 @@ class DatabricksPolicyWeaver(PolicyWeaverCore):
             
             po.type=type
                     
-            permission.objects.append(po)
+            permissionobjects.append(po)
 
+        name = f"{self.config.fabric.fabric_role_prefix}{principal}{self.config.fabric.fabric_role_suffix}"
+        # replace all signs
+        name = name.replace("-", "").replace("_", "").replace(" ", "")
         policy = RolePolicy(
-            permissions=[permission],
+            permissionobjects=permissionobjects,
             permissionscopes=permission_scopes,
-            name=f"{principal}_{self.config.fabric.fabric_role_suffix}",
+            name=name,
         )
 
 

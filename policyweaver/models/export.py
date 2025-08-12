@@ -83,10 +83,14 @@ class PermissionScope(CommonBaseModel):
         catalog (str): The catalog to which the permission applies.
         catalog_schema (str): The schema of the catalog.
         table (str): The table associated with the permission.
+        name (str): The name of the permission like read or write.
+        state (str): The state of the permission like permit or deny
     """
     catalog: Optional[str] = Field(alias="catalog", default=None)
     catalog_schema: Optional[str] = Field(alias="catalog_schema", default=None)
     table: Optional[str] = Field(alias="table", default=None)
+    name: Optional[str] = Field(alias="name", default=None)
+    state: Optional[str] = Field(alias="state", default=None)
 
 class RolePolicy(CommonBaseModel):
     """
@@ -98,7 +102,7 @@ class RolePolicy(CommonBaseModel):
         permissions (List[Permission]): A list of permissions associated with the policy.
         permissionscopes (List[PermissionScope]): A list of permission scopes associated with the policy.
     """
-    permissions: Optional[List[Permission]] = Field(alias="permissions", default=None)
+    permissionobjects: Optional[List[PermissionObject]] = Field(alias="permissionobjects", default=None)
     permissionscopes: Optional[List[PermissionScope]] = Field(alias="permissionscopes", default=None)
     name: Optional[str] = Field(alias="name", default=None)
 

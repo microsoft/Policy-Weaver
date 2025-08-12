@@ -24,7 +24,7 @@ from policyweaver.models.fabric import (
     FabricMemberObjectType,
     FabricPolicyAccessType,
 )
-from policyweaver.models.export import PolicyExport, RolePolicyExport
+from policyweaver.models.export import PolicyExport, RolePolicyExport, RolePolicy
 from policyweaver.models.config import SourceMap
 from policyweaver.core.enum import (
     PolicyWeaverConnectorType,
@@ -102,12 +102,16 @@ class WeaverAgent:
                 pass
         
         logger.info(f"Running Policy Export for {config.type}: {config.source.name}...")
-        policy_export = src.map_policy()
+        policy_mapping = config.fabric.policy_mapping
+
+        policy_export = src.map_policy(policy_mapping)
         
         if policy_export:
             weaver.source_snapshot_handler(policy_export)
-
-            await weaver.apply(policy_export)
+            if policy_mapping == "role_based":
+                await weaver.apply_role(policy_export)
+            else:
+                await weaver.apply(policy_export)
             logger.info("Policy Weaver Sync complete!")
         else:
             logger.info("No policies found to apply. Exiting...")
@@ -153,6 +157,31 @@ class WeaverAgent:
         self.__get_current_access_policy__()
         self.__apply_policies__(policy_export)
 
+    async def apply_role(self, policy_export: RolePolicyExport) -> None:
+        """
+        Apply the policies to Microsoft Fabric based on the provided policy export.
+        This method retrieves the current access policies, builds new data access policies
+        based on the policy export, and applies them to the Fabric workspace.
+        Args:
+            policy_export (PolicyExport): The exported policies from the source, containing permissions and objects.
+        """
+        self.__graph_map = await self.__get_graph_map_role__(policy_export)
+
+        if not self.config.fabric.tenant_id:
+            self.config.fabric.tenant_id = ServicePrincipal.TenantId
+
+        self.logger.info(f"Tenant ID: {self.config.fabric.tenant_id}...")
+        self.logger.info(f"Workspace ID: {self.config.fabric.workspace_id}...")
+        self.logger.info(f"Mirror ID: {self.config.fabric.mirror_id}...")
+        self.logger.info(f"Mirror Name: {self.config.fabric.mirror_name}...")
+
+        if not self.config.fabric.workspace_name:
+            self.config.fabric.workspace_name = self.fabric_api.get_workspace_name()
+
+        self.logger.info(f"Applying Fabric Policies to {self.config.fabric.workspace_name}...")
+        self.__get_current_access_policy__()
+        self.__apply_role_policies__(policy_export)
+
     def __apply_role_policies__(self, policy_export: RolePolicyExport) -> None:
         """
         Apply the policies to Microsoft Fabric by creating or updating data access policies.
@@ -164,17 +193,12 @@ class WeaverAgent:
         access_policies = []
 
         for policy in policy_export.policies:
-            for permission in policy.permissions:
-                if (
-                    permission.name == PermissionType.SELECT
-                    and permission.state == PermissionState.GRANT
-                ):
-                    access_policy = self.__build_data_access_policy__(
-                        policy, permission, policy.permissionscopes, FabricPolicyAccessType.READ
-                    )
+            access_policy = self.__build_data_access_role_policy__(
+                policy, FabricPolicyAccessType.READ
+            )
 
-                    self.fabric_snapshot_handler(access_policy)
-                    access_policies.append(access_policy)
+            self.fabric_snapshot_handler(access_policy)
+            access_policies.append(access_policy)
 
         inserted_policies = len(access_policies)
         updated_policies = 0
@@ -353,7 +377,7 @@ class WeaverAgent:
         if not table:
             if schema:
                 return f"Tables/{schema}"
-            return None
+            return "*"
 
         if self.config.mapped_items:
             matched_tbl = next(
@@ -398,6 +422,35 @@ class WeaverAgent:
                                     graph_map[object.lookup_id] = object.id
                             
         return graph_map
+    
+    async def __get_graph_map_role__(self, policy_export: RolePolicyExport) -> Dict[str, str]:
+        """
+        Retrieve a mapping of user and service principal IDs from the Microsoft Graph API.
+        This method iterates through the permissions in the policy export and retrieves
+        the corresponding user or service principal IDs based on their lookup IDs.
+        Args:
+            policy_export (PolicyExport): The exported policies from the source, containing permissions and objects.
+        Returns:
+            Dict[str, str]: A dictionary mapping lookup IDs to user or service principal IDs.
+        """
+        graph_map = dict()
+
+        for policy in policy_export.policies:
+            for object in policy.permissionobjects:
+                if object.lookup_id not in graph_map:
+                    match object.type:
+                        case IamType.USER:
+                            if not object.id:
+                                graph_map[object.lookup_id] = await self.graph_client.get_user_by_email(object.email)
+                            else:
+                                graph_map[object.lookup_id] = object.id
+                        case IamType.SERVICE_PRINCIPAL:
+                            if not object.id:
+                                graph_map[object.lookup_id] = await self.graph_client.get_service_principal_by_id(object.app_id)
+                            else:
+                                graph_map[object.lookup_id] = object.id
+                            
+        return graph_map
 
     def __get_role_name__(self, policy:PolicyExport) -> str:
         """
@@ -435,6 +488,8 @@ class WeaverAgent:
         table_path = self.__get_table_mapping__(
             policy.catalog, policy.catalog_schema, policy.table
         )
+        if table_path and table_path != "*":
+            table_path = f"/{table_path}"
 
         dap = DataAccessPolicy(
             name=role_name,
@@ -445,7 +500,7 @@ class WeaverAgent:
                         PolicyPermissionScope(
                             attribute_name=PolicyAttributeType.PATH,
                             attribute_value_included_in=[
-                                f"/{table_path}" if table_path else "*"
+                                table_path
                             ],
                         ),
                         PolicyPermissionScope(
@@ -476,8 +531,8 @@ class WeaverAgent:
         self.logger.debug(f"POLICY WEAVER - Data Access Policy - {dap.name}: {dap.model_dump_json(indent=4)}")
         
         return dap
-    
-    def __build_data_access_role_policy__(self, policy:PolicyExport, permission:PermissionType, access_policy_type:FabricPolicyAccessType) -> DataAccessPolicy:
+
+    def __build_data_access_role_policy__(self, policy:RolePolicy, access_policy_type:FabricPolicyAccessType) -> DataAccessPolicy:
         """
         Build a Data Access Policy based on the provided policy and permission.
         This method constructs a Data Access Policy object that includes the role name,
@@ -490,14 +545,17 @@ class WeaverAgent:
             DataAccessPolicy: The constructed Data Access Policy object.
         """
 
-        role_name = self.__get_role_name__(policy)
+        role_name = policy.name
 
 
         table_paths = []
-        for permission_scope in permission_scopes:
-
-            table_path = self.__get_table_mapping__(permission_scope.catalog, permission_scope.catalog_schema, permission_scope.table)
-            table_paths.append(table_path)
+        for permission_scope in policy.permissionscopes:
+            if (permission_scope.name == PermissionType.SELECT and permission_scope.state == PermissionState.GRANT):
+                table_path = self.__get_table_mapping__(permission_scope.catalog, permission_scope.catalog_schema, permission_scope.table)
+                if table_path:
+                    if table_path != "*":
+                        table_path = f"/{table_path}"
+                    table_paths.append(table_path)
 
         permission_scopes = [
                         PolicyPermissionScope(
@@ -523,7 +581,7 @@ class WeaverAgent:
             ),
         )
 
-        for o in permission.objects:
+        for o in policy.permissionobjects:
             if o.lookup_id in self.__graph_map:
                 dap.members.entra_members.append(
                     EntraMember(
