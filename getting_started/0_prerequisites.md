@@ -41,7 +41,9 @@ fabric:
   workspace_id: <your fabric workspace id>
   tenant_id: <your fabric tenant id>
   fabric_role_suffix: PWPolicy
+  fabric_role_prefix: PW  <-- this is necessary if you use policy mapping = role_based
   delete_default_reader_role: true
+  policy_mapping: < table_based or role_based , the first will create one role per table, the latter one role per dbx group/snowflake role>
 service_principal:
   client_id: <Depending on the keyvault setting: the keyvault secret name or your azure SP client id>
   client_secret: <Depending on the keyvault setting: the keyvault secret name or your azure SP secret>
@@ -52,5 +54,5 @@ type: UNITY_CATALOG
 databricks:
   workspace_url: https://adb-xxxxxxxxxxx.azuredatabricks.net/
   account_id: <your databricks account id>
-  account_api_token: <Depending on the keyvault setting: the keyvault secret name or your databricks secret>
+  account_api_token: <Depending on the keyvault setting: the keyvault secret name or your databricks OAuth secret which you created in the databricks account portal> 
 ```
