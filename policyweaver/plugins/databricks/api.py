@@ -108,7 +108,23 @@ class DatabricksAPIClient:
         self.logger.debug(f"DBX ACCOUNT Service Principals: {json.dumps(service_principals, default=pydantic_encoder, indent=4)}")
 
         return service_principals
-    
+
+    def get_members(group_id, dbx_groups):
+        dbx_group = dbx_groups.get(group_id)
+        if not dbx_group:
+            print("Group not found")
+            return []
+        members = list()
+        for member in dbx_group["members"]:
+            if "Groups" in member["$ref"]:
+                sub_group_members = DatabricksAPIClient.get_members(member["value"], dbx_groups)
+                members.extend(sub_group_members)
+            else:
+                member["byGroup"] = dbx_group["displayName"]
+                print(member)
+                members.append(member)
+        return members
+
     def __get_account_groups__(self) -> List[DatabricksGroup]:
         """
         Retrieves the list of groups in the account.
@@ -116,29 +132,40 @@ class DatabricksAPIClient:
             List[DatabricksGroup]: A list of DatabricksGroup objects representing the groups in the account.
         """
         groups = []
-
+        dbx_groups = dict()
         for g in self.account_client.groups.list():
+            dbx_groups[g.id] = g.as_dict()
+
+        for g in dbx_groups.values():
+            members = DatabricksAPIClient.get_members(g["id"], dbx_groups)
+
             group = DatabricksGroup(
-                id=g.id,
-                name=g.display_name,
+                id=g["id"],
+                name=g["displayName"],
                 members=[]
             )
 
-            for m in g.members:
+            member_ids = list()
+            for m in members:
+                if m["value"] in member_ids:
+                    continue
+
                 gm = DatabricksGroupMember(
-                        id=m.value,
-                        name=m.display
+                        id=m["value"],
+                        name=m["display"]
                     )
-                
-                if m.ref.find("Users") > -1:
+
+                if m["$ref"].find("Users") > -1:
                     gm.type = IamType.USER
-                elif m.ref.find("ServicePrincipals") > -1:
+                elif m["$ref"].find("ServicePrincipals") > -1:
                     gm.type = IamType.SERVICE_PRINCIPAL
                 else:
                     gm.type = IamType.GROUP
+                    raise ValueError(f"This should be flattened already")
 
                 group.members.append(gm)
-            
+                member_ids.append(m["value"])
+
             groups.append(group)
 
         self.logger.debug(f"DBX ACCOUNT Groups: {json.dumps(groups, default=pydantic_encoder, indent=4)}")
@@ -246,7 +273,7 @@ class DatabricksAPIClient:
         self.logger.debug(f"DBX WORKSPACE Service Principals: {json.dumps(service_principals, default=pydantic_encoder, indent=4)}")
 
         return service_principals
-    
+
     def __get_workspace_groups__(self) -> List[DatabricksGroup]:
         """
             Retrieves the list of groups in the workspace.
@@ -254,28 +281,40 @@ class DatabricksAPIClient:
             List[DatabricksGroup]: A list of DatabricksGroup objects representing the groups in the workspace.
         """
         groups = []
-
+        dbx_groups = dict()
         for g in self.workspace_client.groups.list():
+            dbx_groups[g.id] = g.as_dict()
+
+        for g in dbx_groups.values():
+            members = DatabricksAPIClient.get_members(g["id"], dbx_groups)
+
             group = DatabricksGroup(
-                id=g.id,
-                name=g.display_name,
+                id=g["id"],
+                name=g["displayName"],
                 members=[]
             )
 
-            for m in g.members:
+            member_ids = list()
+            for m in members:
+                if m["value"] in member_ids:
+                    continue
                 gm = DatabricksGroupMember(
-                        id=m.value,
-                        name=m.display
+                        id=m["value"],
+                        name=m["display"]
                     )
-                
-                if m.ref.find("Users") > -1:
+
+                if m["$ref"].find("Users") > -1:
                     gm.type = IamType.USER
-                elif m.ref.find("ServicePrincipals") > -1:
+                elif m["$ref"].find("ServicePrincipals") > -1:
                     gm.type = IamType.SERVICE_PRINCIPAL
                 else:
                     gm.type = IamType.GROUP
+                    raise ValueError(f"This should be flattened already")
+
 
                 group.members.append(gm)
+                member_ids.append(m["value"])
+
             
             groups.append(group)
 

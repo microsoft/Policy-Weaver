@@ -52,11 +52,13 @@ class PrivilegeSnapshot(CommonBaseModel):
         maps (Optional[Dict[str, DependencyMap]]): A dictionary mapping privilege names to their
             corresponding DependencyMap objects, which describe the dependencies of each privilege.
         group_membership (Optional[List[str]]): A list of group names that the principal is a member of.
+        members (Optional[List[str]]): A list of member identifiers (user, service principal, or group) associated with the principal.
     """
     principal: Optional[str] = Field(alias="principal", default=None)
     type: Optional[IamType] = Field(alias="type", default=None)
     maps: Optional[Dict[str, DependencyMap]] = Field(alias="maps", default={})    
     group_membership: Optional[List[str]] = Field(alias="group_membership", default=[])
+    members: Optional[List[str]] = Field(alias="members", default=[])
 
 class Privilege(CommonBaseModel):
     """

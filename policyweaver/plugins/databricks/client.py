@@ -1,10 +1,11 @@
+from enum import member
 import json
 import os
 from pydantic.json import pydantic_encoder
 
 from typing import List, Tuple
 from policyweaver.models.export import (
-    PolicyExport, Policy, Permission, PermissionObject
+    CatalogItem, PolicyExport, Policy, Permission, PermissionObject, RolePolicy, RolePolicyExport, PermissionScope
 )
 from policyweaver.plugins.databricks.model import (
     Privilege, PrivilegeSnapshot, DependencyMap, DatabricksSourceMap
@@ -94,9 +95,15 @@ class DatabricksPolicyWeaver(PolicyWeaverCore):
 
         self.__apply_access_model__()
 
-        policies = self.__build_export_policies__()
+        policies = self.__build_export_role_policies__()
+        return RolePolicyExport(
+            source=self.config.source,
+            type=self.connector_type,
+            policies=policies
+        )
+        # policies = self.__build_export_policies__()
 
-        return PolicyExport(source=self.config.source, type=self.connector_type, policies=policies)
+        # return PolicyExport(source=self.config.source, type=self.connector_type, policies=policies)
     
     def __get_three_part_key__(self, catalog:str, schema:str=None, table:str=None) -> str:
         """
@@ -255,6 +262,144 @@ class DatabricksPolicyWeaver(PolicyWeaverCore):
                 self.__search_privileges__(privilege_snapshot, map_key, self.dbx_read_permissions)
    
         return privilege_snapshot
+    
+
+    def __get_role_based_privileges__(self, principal: str) -> List[CatalogItem]:
+        catalog_privileges = []
+        catalog_items_w_read_permission = list()
+        for privilege in self.workspace.catalog.privileges:
+            if privilege.principal == principal:
+                catalog_privileges = privilege.privileges
+                break
+        if any(p in self.dbx_read_permissions for p in catalog_privileges):
+            return [CatalogItem(catalog=self.workspace.catalog.name)]
+        
+        if not any(p in self.dbx_catalog_read_prereqs for p in privilege.privileges):
+            return None
+        
+        for schema in self.workspace.catalog.schemas:
+            schema_privileges = []
+            for privilege in schema.privileges:
+                if privilege.principal == principal:
+                    schema_privileges = privilege.privileges
+                    break
+            if any(p in self.dbx_read_permissions for p in schema_privileges):
+                catalog_items_w_read_permission.append(CatalogItem(catalog=self.workspace.catalog.name, catalog_schema=schema.name))
+                continue
+
+            if not any(p in self.dbx_schema_read_prereqs for p in schema_privileges):
+                continue
+
+            for table in schema.tables:
+                table_privileges = []
+                for privilege in table.privileges:
+                    if privilege.principal == principal:
+                        table_privileges = privilege.privileges
+                        break
+                if any(p in self.dbx_read_permissions for p in table_privileges):
+                    catalog_items_w_read_permission.append(CatalogItem(catalog=self.workspace.catalog.name,
+                                                                       catalog_schema=schema.name,
+                                                                       table=table.name))
+                    continue
+
+        return catalog_items_w_read_permission
+
+    def __build_export_role_policies__(self) -> List[RolePolicy]:
+        """
+        Builds the export group policies from the collected privileges in the snapshot.
+        This method constructs RolePolicy objects for each group and its associated permissions.
+        Returns:
+            List[RolePolicy]: A list of RolePolicy objects representing the export group policies.
+        """
+
+        policies = []
+
+        for principal, snapshot in self.snapshot.items():
+            cat_items = self.__get_role_based_privileges__(principal)
+            if not cat_items:
+                continue
+            policies.append(self.__build_role_policy(principal, snapshot.type, cat_items))
+
+        return policies
+
+    def __build_role_policy(self, principal:str, iam_type:IamType, cat_items:List[CatalogItem]) -> RolePolicy:
+        """
+        Builds a RolePolicy object from the provided principal and iam_type and catalog items.
+        Args:
+            principal (str): The principal (user or group) for the role policy.
+            iam_type (IamType): The IAM type (user, group, service principal) for the role policy.
+            cat_items (List[CatalogItem]): The catalog items associated with the role policy.
+        Returns:
+            RolePolicy: A RolePolicy object representing the role and its associated permissions.
+        """
+        
+        permission_scopes = []
+
+        
+        for cat_item in cat_items:
+            ps = PermissionScope()
+            ps.catalog = cat_item.catalog
+            ps.catalog_schema = cat_item.catalog_schema
+            ps.table = cat_item.table
+
+            permission_scopes.append(ps)
+
+        permission = Permission(
+                    name=PermissionType.SELECT,
+                    state=PermissionState.GRANT,
+                    objects=[])
+        
+        members = []
+
+        if iam_type == IamType.GROUP:
+            for group in self.workspace.groups:
+                if group.name == principal:
+                    members = [member.id for member in group.members]
+                    break
+        elif iam_type == IamType.USER:
+            for u in self.workspace.users:
+                if u.email == principal:
+                    members = [u.id]
+                    break
+        elif iam_type == IamType.SERVICE_PRINCIPAL:
+            for s in self.workspace.service_principals:
+                if s.application_id == principal:
+                    members = [s.id]
+                    break
+
+
+        for member_id in members:
+            po = PermissionObject()
+            member = None
+            for u in self.workspace.users:
+                if u.id == member_id:
+                    member = u.id
+                    po.id = u.external_id
+                    type = IamType.USER
+                    po.email = u.email  
+                    break
+            if not member:
+                for s in self.workspace.service_principals:
+                    if s.id == member_id:
+                        type = IamType.SERVICE_PRINCIPAL
+                        po.id = s.external_id
+                        po.app_id = s.application_id    
+                        break
+
+            
+            po.type=type
+                    
+            permission.objects.append(po)
+
+        policy = RolePolicy(
+            permissions=[permission],
+            permissionscopes=permission_scopes,
+            name=f"{principal}_{self.config.fabric.fabric_role_suffix}",
+        )
+
+
+        return policy
+
 
     def __build_export_policies__(self) -> List[Policy]:
         """

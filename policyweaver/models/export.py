@@ -74,3 +74,44 @@ class PolicyExport(CommonBaseModel):
     source: Optional[Source] = Field(alias="source", default=None)
     type: Optional[PolicyWeaverConnectorType] = Field(alias="type", default=None)
     policies: Optional[List[Policy]] = Field(alias="policies", default=None)
+
+
+class PermissionScope(CommonBaseModel):
+    """
+    Represents the scope of a permission in the Policy Weaver application.
+    Attributes:
+        catalog (str): The catalog to which the permission applies.
+        catalog_schema (str): The schema of the catalog.
+        table (str): The table associated with the permission.
+    """
+    catalog: Optional[str] = Field(alias="catalog", default=None)
+    catalog_schema: Optional[str] = Field(alias="catalog_schema", default=None)
+    table: Optional[str] = Field(alias="table", default=None)
+
+class RolePolicy(CommonBaseModel):
+    """
+    Represents a policy in the Policy Weaver application.
+    Attributes:
+        id (str): The unique identifier for the policy.
+        name (str): The name of the policy.
+        type (str): The type of the policy.
+        permissions (List[Permission]): A list of permissions associated with the policy.
+        permissionscopes (List[PermissionScope]): A list of permission scopes associated with the policy.
+    """
+    permissions: Optional[List[Permission]] = Field(alias="permissions", default=None)
+    permissionscopes: Optional[List[PermissionScope]] = Field(alias="permissionscopes", default=None)
+    name: Optional[str] = Field(alias="name", default=None)
+
+class RolePolicyExport(CommonBaseModel):
+    """
+    Represents a policy export in the Policy Weaver application.
+    Attributes:
+        id (str): The unique identifier for the policy export.
+        name (str): The name of the policy export.
+        source (Source): The source from which the policy is exported.
+        type (PolicyWeaverConnectorType): The type of the connector used for the policy export.
+        policies (List[Policy]): A list of policies included in the export.
+    """
+    source: Optional[Source] = Field(alias="source", default=None)
+    type: Optional[PolicyWeaverConnectorType] = Field(alias="type", default=None)
+    policies: Optional[List[RolePolicy]] = Field(alias="policies", default=None)

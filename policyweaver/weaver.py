@@ -24,7 +24,7 @@ from policyweaver.models.fabric import (
     FabricMemberObjectType,
     FabricPolicyAccessType,
 )
-from policyweaver.models.export import PolicyExport
+from policyweaver.models.export import PolicyExport, RolePolicyExport
 from policyweaver.models.config import SourceMap
 from policyweaver.core.enum import (
     PolicyWeaverConnectorType,
@@ -152,6 +152,89 @@ class WeaverAgent:
         self.logger.info(f"Applying Fabric Policies to {self.config.fabric.workspace_name}...")
         self.__get_current_access_policy__()
         self.__apply_policies__(policy_export)
+
+    def __apply_role_policies__(self, policy_export: RolePolicyExport) -> None:
+        """
+        Apply the policies to Microsoft Fabric by creating or updating data access policies.
+        This method builds data access policies based on the permissions in the policy export
+        and applies them to the Fabric workspace.
+        Args:
+            policy_export (RolePolicyExport): The exported policies from the source, containing permissions and objects.
+        """
+        access_policies = []
+
+        for policy in policy_export.policies:
+            for permission in policy.permissions:
+                if (
+                    permission.name == PermissionType.SELECT
+                    and permission.state == PermissionState.GRANT
+                ):
+                    access_policy = self.__build_data_access_policy__(
+                        policy, permission, policy.permissionscopes, FabricPolicyAccessType.READ
+                    )
+
+                    self.fabric_snapshot_handler(access_policy)
+                    access_policies.append(access_policy)
+
+        inserted_policies = len(access_policies)
+        updated_policies = 0
+        deleted_policies = 0
+        unmanaged_policies = 0
+
+        # Append policies not managed by PolicyWeaver
+        if self.current_fabric_policies:
+            for p in self.current_fabric_policies:
+                if not self.FabricPolicyRoleSuffix in p.name:
+                    continue
+
+                # Check if the policy already exists
+                existing_policy = next((ap for ap in access_policies if ap.name.lower() == p.name.lower()), None)
+
+                if existing_policy:
+                    # Update existing policy
+                    self.logger.debug(f"Updating Policy: {p.name}")
+                    existing_policy.id = p.id
+                    updated_policies += 1
+                    inserted_policies -= 1
+                else:
+                    self.logger.debug(f"Removing Policy: {p.name}")
+
+            xapply = [p for p in self.current_fabric_policies if not p.name.lower().endswith(self.FabricPolicyRoleSuffix.lower())]
+
+            if xapply:
+                self.logger.debug(f"Unmanaged Policies: {len(xapply)}")
+
+                if self.config.fabric.delete_default_reader_role:
+                    self.logger.debug("Deleting default reader role as configured...")
+                    for p in xapply:
+                        xapply = [p for p in xapply if not p.name.lower() == self.__FABRIC_DEFAULT_READER_ROLE.lower()]
+
+                unmanaged_policies += len(xapply)
+                access_policies.extend(xapply)
+            
+            for p in self.current_fabric_policies:
+                if p.name not in [ap.name for ap in access_policies]:
+                    deleted_policies += 1
+        else:
+            self.logger.debug("No current Fabric policies found.")
+
+        self.logger.info(f"Policies Summary - Inserted: {inserted_policies}, Updated: {updated_policies}, Deleted: {deleted_policies}, Unmanaged: {unmanaged_policies}")
+
+        if (inserted_policies + updated_policies + deleted_policies + unmanaged_policies) > 0:
+            dap_request = {
+                "value": [
+                    p.model_dump(exclude_none=True, exclude_unset=True)
+                    for p in access_policies
+                ]
+            }
+
+            self.fabric_api.put_data_access_policy(
+                self.config.fabric.mirror_id, json.dumps(dap_request)
+            )
+
+            self.logger.info(f"Total Data Access Polices Synced: {len(access_policies)}")
+        else:
+            self.logger.info("No Data Access Policies to sync...")
 
     def __apply_policies__(self, policy_export: PolicyExport) -> None:
         """
@@ -370,6 +453,69 @@ class WeaverAgent:
                             attribute_value_included_in=[access_policy_type],
                         ),
                     ],
+                )
+            ],
+            members=PolicyMembers(
+                entra_members=[]
+            ),
+        )
+
+        for o in permission.objects:
+            if o.lookup_id in self.__graph_map:
+                dap.members.entra_members.append(
+                    EntraMember(
+                        object_id=self.__graph_map[o.lookup_id],
+                        tenant_id=self.config.fabric.tenant_id,
+                        object_type=FabricMemberObjectType.USER if o.type == IamType.USER else FabricMemberObjectType.SERVICE_PRINCIPAL,
+                    ))
+            else:
+                self.logger.warning(f"POLICY WEAVER - {o.lookup_id} not found in Microsoft Graph. Skipping...")
+                self._unmapped_policy_handler(o.lookup_id, policy)
+                continue
+
+        self.logger.debug(f"POLICY WEAVER - Data Access Policy - {dap.name}: {dap.model_dump_json(indent=4)}")
+        
+        return dap
+    
+    def __build_data_access_role_policy__(self, policy:PolicyExport, permission:PermissionType, access_policy_type:FabricPolicyAccessType) -> DataAccessPolicy:
+        """
+        Build a Data Access Policy based on the provided policy and permission.
+        This method constructs a Data Access Policy object that includes the role name,
+        decision rules, and members based on the policy's catalog, schema, table, and permissions
+        Args:
+            policy (PolicyExport): The policy object containing catalog, schema, and table information.
+            permission (PermissionType): The permission type to be applied (e.g., SELECT).
+            access_policy_type (FabricPolicyAccessType): The type of access policy (e.g., READ).
+        Returns:
+            DataAccessPolicy: The constructed Data Access Policy object.
+        """
+
+        role_name = self.__get_role_name__(policy)
+
+
+        table_paths = []
+        for permission_scope in permission_scopes:
+
+            table_path = self.__get_table_mapping__(permission_scope.catalog, permission_scope.catalog_schema, permission_scope.table)
+            table_paths.append(table_path)
+
+        permission_scopes = [
+                        PolicyPermissionScope(
+                            attribute_name=PolicyAttributeType.PATH,
+                            attribute_value_included_in=table_paths,
+                        ),
+                        PolicyPermissionScope(
+                            attribute_name=PolicyAttributeType.ACTION,
+                            attribute_value_included_in=[access_policy_type],
+                        ),
+                    ]
+
+        dap = DataAccessPolicy(
+            name=role_name,
+            decision_rules=[
+                PolicyDecisionRule(
+                    effect=PolicyEffectType.PERMIT,
+                    permission=permission_scopes,
                 )
             ],
             members=PolicyMembers(
