@@ -115,13 +115,16 @@ class DatabricksAPIClient:
             print("Group not found")
             return []
         members = list()
+        if not ("members" in dbx_group):
+            return members
+
         for member in dbx_group["members"]:
             if "Groups" in member["$ref"]:
                 sub_group_members = DatabricksAPIClient.get_members(member["value"], dbx_groups)
                 members.extend(sub_group_members)
+                members.append(member)
             else:
                 member["byGroup"] = dbx_group["displayName"]
-                print(member)
                 members.append(member)
         return members
 
@@ -161,7 +164,6 @@ class DatabricksAPIClient:
                     gm.type = IamType.SERVICE_PRINCIPAL
                 else:
                     gm.type = IamType.GROUP
-                    raise ValueError(f"This should be flattened already")
 
                 group.members.append(gm)
                 member_ids.append(m["value"])

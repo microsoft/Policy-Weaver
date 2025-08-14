@@ -85,6 +85,27 @@ class Privilege(CommonBaseModel):
         else:
             return IamType.GROUP
 
+class PrivilegeItem(CommonBaseModel):
+    """
+    Represents a specific privilege item
+    Attributes:
+        catalog (Optional[str]): The name of the catalog.
+        schema (Optional[str]): The name of the schema.
+        table (Optional[str]): The name of the table.
+        role (Optional[str]): The role associated with the privilege.
+        type (Optional[str]): The type of the privilege.
+        permission (Optional[str]): The permission level (e.g., read, write).
+        grant (Optional[str]): The grant option for the privilege.
+    """
+
+    catalog: Optional[str] = Field(alias="catalog", default=None)
+    schema: Optional[str] = Field(alias="schema", default=None)
+    table: Optional[str] = Field(alias="table", default=None)
+    role: Optional[str] = Field(alias="role", default=None)
+    type: Optional[str] = Field(alias="type", default=None)
+    permission: Optional[str] = Field(alias="permission", default=None)
+    grant: Optional[str] = Field(alias="grant", default=None)
+
 class BaseObject(CommonBaseModel):
     """
     Base class for objects in the Databricks model.
@@ -391,10 +412,10 @@ class Workspace(BaseObject):
 
         if group:
             for m in group.members:
-                if m.type == IamType.USER and m.id == id:
+                if m.id == id:
                     if m.name not in membership:
                         membership.append(group.name)
-                elif m.type == IamType.GROUP:
+                if m.type == IamType.GROUP:
                     membership = self.__extend_with_dedup__(
                         membership, self.__flatten_group__(m.name, id)
                     )
