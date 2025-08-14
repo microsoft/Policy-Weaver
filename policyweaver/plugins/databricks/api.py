@@ -109,6 +109,7 @@ class DatabricksAPIClient:
 
         return service_principals
 
+    @staticmethod
     def get_members(group_id, dbx_groups):
         dbx_group = dbx_groups.get(group_id)
         if not dbx_group:
