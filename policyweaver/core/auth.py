@@ -1,4 +1,4 @@
-from azure.identity import ClientSecretCredential
+from azure.identity import ClientSecretCredential, AzureCliCredential
 import os
 
 from policyweaver.core.common import classproperty
@@ -76,7 +76,7 @@ class ServicePrincipal:
         return os.environ["SP_CLIENT_SECRET"]
     
     @classmethod
-    def get_token(cls) -> str:
+    def get_token(cls, scope="https://api.fabric.microsoft.com/.default") -> str:
         """
         Retrieves an access token for the Azure Fabric API using the service principal's credentials.
         If the token is not already cached, it creates a new token using the ClientSecretCredential.
@@ -84,13 +84,12 @@ class ServicePrincipal:
         Returns:
             str: The access token for the Azure Fabric API.
         """
-        if cls.__token__ is None:
-            cls.__token__ = cls.Credential.get_token("https://api.fabric.microsoft.com/.default")
+        cls.__token__ = cls.Credential.get_token(scope)
         
         return cls.__token__.token
 
     @classmethod
-    def get_token_header(cls) -> dict:
+    def get_token_header(cls, scope="https://api.fabric.microsoft.com/.default") -> dict:
         """
         Returns a dictionary containing the authorization header with the Bearer token.
         This header can be used in API requests to authenticate with the Azure Fabric API.
@@ -98,5 +97,51 @@ class ServicePrincipal:
             dict: A dictionary with the authorization header containing the Bearer token.
         """
         return {
-            "Authorization": f"Bearer {cls.get_token()}",
+            "Authorization": f"Bearer {cls.get_token(scope)}",
+        }
+
+class AzureCLIClient:
+    """
+    Azure CLI Client for Azure Fabric API Authentication.
+    This class provides methods to retrieve the access token using the Azure CLI.
+    It is used when the service principal is not available or when using Azure CLI authentication.
+    """
+    @classmethod
+    def initialize(cls):
+        """
+        Initialize the Azure CLI client.
+        """
+        cls.__token__ = None
+
+    @classproperty
+    def Credential(cls) -> AzureCliCredential:
+        """
+        Returns a AzureCliCredential instance .
+        This credential can be used to authenticate API calls to Azure services.
+        Returns:
+            AzureCliCredential: An instance of AzureCliCredential.
+        """
+        return AzureCliCredential()
+    
+    @classmethod
+    def get_token(cls, scope="https://api.fabric.microsoft.com/.default") -> str:
+        """
+        Retrieves an access token for the Azure Fabric API using the Azure CLI credentials.
+        This method uses the AzureCliCredential to obtain the token.
+        Returns:
+            str: The access token for the Azure Fabric API.
+        """
+        cls.__token__ = cls.Credential.get_token(scope)
+        return cls.__token__.token
+    
+    @classmethod
+    def get_token_header(cls, scope="https://api.fabric.microsoft.com/.default") -> dict:
+        """
+        Returns a dictionary containing the authorization header with the Bearer token.
+        This header can be used in API requests to authenticate with the Azure Fabric API.
+        Returns:
+            dict: A dictionary with the authorization header containing the Bearer token.
+        """
+        return {
+            "Authorization": f"Bearer {cls.get_token(scope)}",
         }
