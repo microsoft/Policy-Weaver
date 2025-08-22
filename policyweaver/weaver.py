@@ -13,6 +13,7 @@ from policyweaver.core.conf import Configuration
 from policyweaver.core.api.fabric import FabricAPI
 from policyweaver.core.api.microsoftgraph import MicrosoftGraphClient
 from policyweaver.plugins.databricks.client import DatabricksPolicyWeaver
+from policyweaver.plugins.snowflake.client import SnowflakePolicyWeaver
 from policyweaver.models.fabric import (
     DataAccessPolicy,
     PolicyDecisionRule,
