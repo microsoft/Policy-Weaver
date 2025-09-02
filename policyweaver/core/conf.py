@@ -96,5 +96,6 @@ class Configuration:
         config.service_principal.tenant_id = get_secret(config.service_principal.tenant_id)
         config.service_principal.client_id = get_secret(config.service_principal.client_id)
         config.service_principal.client_secret = get_secret(config.service_principal.client_secret)
-        if config.databricks:
+        if hasattr(config, 'databricks') and config.databricks is not None:
             config.databricks.account_api_token = get_secret(config.databricks.account_api_token)
+

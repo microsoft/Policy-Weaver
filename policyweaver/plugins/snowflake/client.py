@@ -25,9 +25,9 @@ class SnowflakePolicyWeaver(PolicyWeaverCore):
         This class extends the PolicyWeaverCore to implement the mapping of policies
         from Snowflake Database to the Policy Weaver framework.
     """
-    sf_read_permissions = ["SELECT"]
-    sf_database_read_prereqs = ["USAGE"]
-    sf_schema_read_prereqs = ["USAGE"]
+    sf_read_permissions = ["SELECT", "OWNERSHIP"]
+    sf_database_read_prereqs = ["USAGE", "OWNERSHIP"]
+    sf_schema_read_prereqs = ["USAGE", "OWNERSHIP"]
 
     def __init__(self, config:SnowflakeSourceMap) -> None:
         """
@@ -80,3 +80,4 @@ class SnowflakePolicyWeaver(PolicyWeaverCore):
 
     def map_policy(self):
         self.map = self.api_client.__get_database_map__()
+        pass

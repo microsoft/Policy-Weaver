@@ -6,7 +6,7 @@ from pydantic.json import pydantic_encoder
 
 import snowflake.connector
 
-from typing import List
+from typing import List, Tuple
 
 from policyweaver.models.config import (
     SourceSchema, Source
@@ -19,9 +19,12 @@ from policyweaver.plugins.databricks.model import (
 
 from policyweaver.plugins.snowflake.model import (
     SnowflakeConnection,
+    SnowflakeGrant,
     SnowflakeRole,
+    SnowflakeRoleMemberMap,
     SnowflakeUser,
-    SnowflakeDatabaseMap
+    SnowflakeDatabaseMap,
+    SnowflakeUserOrRole
 )
 from policyweaver.core.enum import (
     IamType
@@ -52,6 +55,12 @@ class SnowflakeAPIClient:
             account_name=os.environ["SNOWFLAKE_ACCOUNT"],
             warehouse=os.environ["SNOWFLAKE_WAREHOUSE"]
         )
+
+        self.users = None
+        self.roles = None
+        self.grants = None
+        self.role_assignments = None
+        self.user_assignments = None
 
 
 
@@ -98,36 +107,126 @@ class SnowflakeAPIClient:
         
         # get users
 
-        users = self.__get_users__()
+        self.users = self.__get_users__()
 
         # get roles
 
-        roles = self.__get_roles__()
+        self.roles = self.__get_roles__()
 
         # get direct and indirect members for each role
 
-        member_users, member_roles = self.__get_role_memberships__()
-        roles.members_user = member_users
-        roles.members_role = member_roles
+        role_memberships = self.__get_role_memberships__()
+        for role in self.roles:
+            role_name = role.name
+            role.members_user = role_memberships[role_name].users
+            role.members_role = role_memberships[role_name].roles
 
         # get user/role to role memberships
 
         user_role_assignments = self.__get_user_role_assignments__()
-        for u in users:
-            u.role_assignments = user_role_assignments[u]
-        for r in roles:
-            r.role_assignments = user_role_assignments[r]
+        for u in self.users:
+            u.role_assignments = user_role_assignments[u.name]
+        for r in self.roles:
+            r.role_assignments = user_role_assignments[r.name]
 
         # get grants to roles and users
 
-        grants = self.__get_grants__()
+        self.grants = self.__get_grants__()
 
-        map = SnowflakeDatabaseMap(
-            users=users,
-            roles=roles,
-            grants=grants
-        )
-        return map
+        return SnowflakeDatabaseMap(users=self.users, roles=self.roles, grants=self.grants)
+
+    def __get_grants__(self, database="DEMODATA") -> List[SnowflakeGrant]:
+
+        query = f"""select   "PRIVILEGE", "GRANTED_ON", "TABLE_CATALOG", "TABLE_SCHEMA", "NAME", "GRANTEE_NAME"
+                    from     SNOWFLAKE.ACCOUNT_USAGE.GRANTS_TO_ROLES
+                    where    DELETED_ON is null and
+                            GRANTED_ON in ('TABLE','SCHEMA','DATABASE') and
+                            TABLE_CATALOG = '{database}'"""
+        
+        grants_raw = self.__run_query__(query, columns=["PRIVILEGE", "GRANTED_ON", "TABLE_CATALOG", "TABLE_SCHEMA", "NAME", "GRANTEE_NAME"]) 
+
+        grants = [SnowflakeGrant(privilege=grant["PRIVILEGE"],
+                                 granted_on=grant["GRANTED_ON"],
+                                 table_catalog=grant["TABLE_CATALOG"],
+                                 table_schema=grant["TABLE_SCHEMA"],
+                                 name=grant["NAME"],
+                                 grantee_name=grant["GRANTEE_NAME"]) for grant in grants_raw]
+        
+        return grants
+
+    def __get_user_role_assignment__(self, user: SnowflakeUserOrRole, is_user: bool) -> List[SnowflakeRole]:
+        
+        if is_user:
+            directly_assigned = [role["NAME"] for role in self.user_assignments if role["GRANTEE_NAME"] == user.name]
+        else:
+            directly_assigned = [role["NAME"] for role in self.role_assignments if role["GRANTEE_NAME"] == user.name]
+
+        assigned_roles = [role for role in self.roles if role.name in directly_assigned]
+
+        # Inherited assignment
+        for role in assigned_roles:
+            inherited_roles = self.__get_user_role_assignment__(role, is_user=False)
+            assigned_roles.extend(inherited_roles)
+
+        return assigned_roles
+
+    def __get_user_role_assignments__(self) -> dict[str, List[SnowflakeRole]]:
+        user_role_assignments = dict()
+        for user in self.users:
+            user_role_assignments[user.name] = self.__get_user_role_assignment__(user, is_user=True)
+
+        for role in self.roles:
+            user_role_assignments[role.name] = self.__get_user_role_assignment__(role, is_user=False)
+
+        return user_role_assignments
+
+    def __get_role_membership__(self, role_name) -> Tuple[List[str], List[str]]:
+
+        users = [user["GRANTEE_NAME"] for user in self.user_assignments if user["NAME"] == role_name]
+        roles = list()
+
+        for role_ass in self.role_assignments:
+            if role_ass["NAME"] == role_name:
+                roles.append(role_ass["GRANTEE_NAME"])
+
+                users_, roles_ = self.__get_role_membership__(role_name=role_ass["GRANTEE_NAME"])
+                users.extend(users_)
+                roles.extend(roles_)
+
+        return users, roles
+
+    def __get_role_memberships__(self) -> dict[str, SnowflakeRoleMemberMap]:
+
+        role_query = f"""select  "NAME", GRANTEE_NAME
+                    from    SNOWFLAKE.ACCOUNT_USAGE.GRANTS_TO_ROLES
+                    where   GRANTED_TO = 'ROLE' and
+                            GRANTED_ON = 'ROLE' and
+                            DELETED_ON is null and
+                            PRIVILEGE = 'USAGE'"""
+
+        self.role_assignments = self.__run_query__(role_query, columns=["NAME", "GRANTEE_NAME"])
+
+        user_query = f"""select   "ROLE", GRANTEE_NAME 
+                        from     SNOWFLAKE.ACCOUNT_USAGE.GRANTS_TO_USERS
+                        WHERE DELETED_ON is null"""
+
+        self.user_assignments = self.__run_query__(user_query, columns=["NAME", "GRANTEE_NAME"])
+
+        role_memberships = dict()
+        for role in self.roles:
+            role_name = role.name
+            users, roles = self.__get_role_membership__(role_name)
+
+            member_users = [user for user in self.users if user.name in users]
+            member_roles = [role for role in self.roles if role.name in roles]
+
+            role_memberships[role_name] = SnowflakeRoleMemberMap(
+                role_name=role_name,
+                users=member_users,
+                roles=member_roles
+            )
+
+        return role_memberships
 
     def __get_users__(self) -> List[SnowflakeUser]:
 

@@ -7,7 +7,15 @@ from policyweaver.models.config import SourceMap
 from policyweaver.core.enum import IamType
 
 
-class SnowflakeUser(CommonBaseModel):
+class SnowflakeUserOrRole(CommonBaseModel):
+    """
+    Represents a user or role in the Snowflake workspace.
+    This class is a base class for both users and roles.
+    """
+    id: Optional[int] = Field(alias="id", default=None)
+    name: Optional[str] = Field(alias="name", default=None)
+
+class SnowflakeUser(SnowflakeUserOrRole):
     """
     Represents a user in the Snowflake workspace.
     This class extends BaseObject to include additional attributes specific to users.
@@ -24,7 +32,7 @@ class SnowflakeUser(CommonBaseModel):
     login_name: Optional[str] = Field(alias="login_name", default=None)
     role_assignments: List["SnowflakeRole"] = Field(alias="role_assignments", default_factory=list)
 
-class SnowflakeRole(CommonBaseModel):
+class SnowflakeRole(SnowflakeUserOrRole):
     """
     Represents a role in the Snowflake workspace.
     This class extends BaseObject to include additional attributes specific to roles.
@@ -41,9 +49,26 @@ class SnowflakeRole(CommonBaseModel):
     members_role: List["SnowflakeRole"] = Field(alias="members_role", default_factory=list)
     role_assignments: List["SnowflakeRole"] = Field(alias="role_assignments", default_factory=list)
 
+class SnowflakeRoleMemberMap(CommonBaseModel):
+    """
+    Represents the members of a Snowflake role.
+    This class includes the users and roles that are members of the role.
+    Attributes:
+        users (List[SnowflakeUser]): The users that are members of the role.
+        roles (List[SnowflakeRole]): The roles that are members of the role.
+    """
+    role_name: Optional[str] = Field(alias="role_name", default=None)
+    users: List[SnowflakeUser] = Field(alias="users", default_factory=list)
+    roles: List["SnowflakeRole"] = Field(alias="roles", default_factory=list)
+
 class SnowflakeGrant(CommonBaseModel):
-    # To be implemented
-    id: Optional[int] = Field(alias="id", default=None)
+    
+    privilege: Optional[str] = Field(alias="privilege", default=None)
+    granted_on: Optional[str] = Field(alias="granted_on", default=None)
+    table_catalog: Optional[str] = Field(alias="table_catalog", default=None)
+    table_schema: Optional[str] = Field(alias="table_schema", default=None)
+    name: Optional[str] = Field(alias="name", default=None)
+    grantee_name: Optional[str] = Field(alias="grantee_name", default=None)
 
 class SnowflakeDatabaseMap(CommonBaseModel):
     """

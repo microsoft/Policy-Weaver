@@ -15,8 +15,13 @@ service_principal:
   tenant_id: <Depending on the keyvault setting: the keyvault secret name or your azure tenant id again>
 source:
   name: <your databricks catalog name as named in Azure Databricks>
-type: UNITY_CATALOG
+type: SNOWFLAKE
 databricks:
   workspace_url: https://adb-xxxxxxxxxxx.azuredatabricks.net/
   account_id: <your databricks account id>
   account_api_token: <Depending on the keyvault setting: the keyvault secret name or your databricks secret> 
+snowflake:
+  account_name: <name of the snowflake account>
+  user_name: <user name to login>
+  password: <password to login>
+  warehouse: <warehouse name>
