@@ -2,7 +2,7 @@ from typing import Optional, List
 from pydantic import Field
 
 from policyweaver.models.common import CommonBaseModel
-from policyweaver.core.enum import IamType, PolicyWeaverConnectorType
+from policyweaver.core.enum import IamType, PolicyWeaverConnectorType, PermissionType, PermissionState
 from policyweaver.models.config import CatalogItem, Source
 
 class PermissionObject(CommonBaseModel):
@@ -43,8 +43,8 @@ class Permission(CommonBaseModel):
         state (PermissionState): The state of the permission.
         objects (List[PermissionObject]): A list of objects associated with the permission.
     """
-    name: Optional[str] = Field(alias="name", default=None)
-    state: Optional[str] = Field(alias="state", default=None)
+    name: Optional[PermissionType] = Field(alias="name", default=None)
+    state: Optional[PermissionState] = Field(alias="state", default=None)
     objects: Optional[List[PermissionObject]] = Field(alias="objects", default=None)
 
 class Policy(CatalogItem):
@@ -89,8 +89,8 @@ class PermissionScope(CommonBaseModel):
     catalog: Optional[str] = Field(alias="catalog", default=None)
     catalog_schema: Optional[str] = Field(alias="catalog_schema", default=None)
     table: Optional[str] = Field(alias="table", default=None)
-    name: Optional[str] = Field(alias="name", default=None)
-    state: Optional[str] = Field(alias="state", default=None)
+    name: Optional[PermissionType] = Field(alias="name", default=None)
+    state: Optional[PermissionState] = Field(alias="state", default=None)
 
 class RolePolicy(CommonBaseModel):
     """

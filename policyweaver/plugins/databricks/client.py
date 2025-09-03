@@ -273,21 +273,21 @@ class DatabricksPolicyWeaver(PolicyWeaverCore):
         if self.workspace.catalog.privileges:
             catalog_permissions = self.__get_read_permissions__(self.workspace.catalog.privileges, self.workspace.catalog.name)
             for cp in catalog_permissions:
-                permissions.append(PrivilegeItem(catalog=self.workspace.catalog.name, schema=None, table=None,
+                permissions.append(PrivilegeItem(catalog=self.workspace.catalog.name, catalog_schema=None, table=None,
                                                  role=cp[0], type="catalog", permission="read", grant=cp[1]))
 
         for schema in self.workspace.catalog.schemas:
             if schema.privileges:
                 schema_permissions = self.__get_read_permissions__(schema.privileges, self.workspace.catalog.name, schema.name)
                 for sp in schema_permissions:
-                    permissions.append(PrivilegeItem(catalog=self.workspace.catalog.name, schema=schema.name, table=None,
+                    permissions.append(PrivilegeItem(catalog=self.workspace.catalog.name, catalog_schema=schema.name, table=None,
                                                       role=sp[0], type="schema", permission="read", grant=sp[1]))
 
             for tbl in schema.tables:
                 if tbl.privileges:
                     table_permissions = self.__get_read_permissions__(tbl.privileges, self.workspace.catalog.name, schema.name, tbl.name)
                     for tp in table_permissions:
-                        permissions.append(PrivilegeItem(catalog=self.workspace.catalog.name, schema=schema.name, table=tbl.name,
+                        permissions.append(PrivilegeItem(catalog=self.workspace.catalog.name, catalog_schema=schema.name, table=tbl.name,
                                                           role=tp[0], type="table", permission="read", grant=tp[1]))
 
         return permissions
@@ -303,7 +303,7 @@ class DatabricksPolicyWeaver(PolicyWeaverCore):
         catalog_items = []
         for perm in permissions:
             if perm.role == principal and perm.grant == "direct":
-                catalog_items.append(CatalogItem(catalog=perm.catalog, catalog_schema=perm.schema, table=perm.table))
+                catalog_items.append(CatalogItem(catalog=perm.catalog, catalog_schema=perm.catalog_schema, table=perm.table))
         return catalog_items
 
     def __build_export_role_policies__(self) -> List[RolePolicy]:

@@ -237,7 +237,6 @@ class SnowflakeAPIClient:
                     """
 
         users = self.__run_query__(query, columns=columns)
-        print(users)
         return [SnowflakeUser(
             id=user["USER_ID"],
             name=user["NAME"],

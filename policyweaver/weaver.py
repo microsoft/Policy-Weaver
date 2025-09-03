@@ -442,7 +442,7 @@ class WeaverAgent:
                     match object.type:
                         case IamType.USER:
                             if not object.id:
-                                graph_map[object.lookup_id] = await self.graph_client.get_user_by_email(object.email)
+                                graph_map[object.lookup_id] = await self.graph_client.get_user_by_email(object.email.lower())
                             else:
                                 graph_map[object.lookup_id] = object.id
                         case IamType.SERVICE_PRINCIPAL:
