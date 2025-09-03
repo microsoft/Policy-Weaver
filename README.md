@@ -1,37 +1,94 @@
-# Policy Weaver 
+  <p align="center">
+  <img src="./policyweaver.png" alt="Policy Weaver icon" width="200"/>
+</p>
 
-## Overview
+<p align="center">
+    <em>Policy Weaver, synchronizes data access policies across platforms.</em>
+</p>
+<p align="center">
+<a href="https://badgen.net/github/license/microsoft/Policy-Weaver" target="_blank">
+    <img src="https://badgen.net/github/license/microsoft/Policy-Weaver" alt="License">
+</a>
+<a href="https://badgen.net/github/releases/microsoft/Policy-Weaver" target="_blank">
+    <img src="https://badgen.net/github/releases/microsoft/Policy-Weaver" alt="Test">
+</a>
+<a href="https://badgen.net/github/contributors/microsoft/Policy-Weaver" target="_blank">
+    <img src="https://badgen.net/github/contributors/microsoft/Policy-Weaver" alt="Publish">
+</a>
+<a href="https://badgen.net/github/commits/microsoft/Policy-Weaver" target="_blank">
+    <img src="https://badgen.net/github/commits/microsoft/Policy-Weaver" alt="Commits">
+</a>
+<a href="https://badgen.net/pypi/v/Policy-Weaver" target="_blank">
+    <img src="https://badgen.net/pypi/v/Policy-Weaver" alt="Package version">
+</a>
+</p>
 
-[Microsoft Fabric Mirroring](https://learn.microsoft.com/en-us/fabric/database/mirrored-database/overview) is a managed, friction-free way of synchronizing data from a diverse set of data & analytic platforms to Fabric via OneLake. The data in proprietary formats are being automatically transformed in a queryable format (Delta Parquet) in OneLake in near real-time (using the data sources CDC capabilities) without the need to setting up the transformation jobs. With Mirroring, the data is kept in sync between source system and Fabric Onelake, enabling further use of the delta parquet tables with all Fabric workloads.
+---
 
-While Fabric Mirroring provides all the capabilities required to automatically keep data in sync, data access policies defined by the source system are out-of-scope and must be handled manually when the replicated delta parquet tables in Fabric are being used. Manually handling of these data access policies presents a challenge for ensuring consistent security across the data estate while reducing risks or vulnerabilities associated with out-of-sync security policies.
+**Policy Weaver** is a Python-based accelerator designed to automate the synchronization of security policies from different source catalogs with [OneLake Security](https://learn.microsoft.com/en-us/fabric/onelake/security/get-started-data-access-roles). This is required when using OneLake mirroring to ensure consistent security across data platforms.
 
-**The Policy Weaver project** addresses these challenges by automating the synchronization of data access policies from source to Fabric in a transparent and auditable manner. It is made available as a Python library and can be run either within Fabric with a Notebook or from anywhere with a Python runtime.
+It currently supports Azure Databricks and Snowflake. Policy Weaver is designed with a pluggable framework, so new connectors can be added to support additional data sources as needed.
 
-Designed as a pluggable framework, **Policy Weaver** provides connectors that handle the export of access policies from a configured source before applying them to the mirror data within Fabric.
+Key Features:
+- Lightweight Python library that can be run either within Fabric Notebook or from anywhere with a Python runtime.
+- Extracts security policies from Databricks via API and maps them to OneLake Security roles.
+- Resolves effective read privileges automatically, following Databricks documentation—no manual mapping required.
+- Simple configuration and lightweight deployment; can run locally or in a Fabric notebook.
+- Syncs changes in Databricks policies to OneLake Security, updating or removing roles as needed.
+- Supports catalog, schema, and table-level policies.
 
-Policy Weaver will initially supports the following sources:
+Row-level and column-level security extraction will be implemented in the next version, once these features become available in OneLake Security.
+
+----
+## Installation
+Create and activate virtual environments and then install **Policy Weaver**:
+```bash
+$ pip install policy-weaver
+```
+---
+## Prerequisites
+
+- Create an Azure [Service Principal](https://learn.microsoft.com/en-us/entra/identity-platform/howto-create-service-principal-portal) account with the following [Microsoft Graph API permissions](https://learn.microsoft.com/en-us/graph/permissions-reference):
+  - `Application.Read.All`
+  - `User.Read`
+  - `User.Read.All`
+  - `Directory.Read.All`
+- [Create a new client secret](https://learn.microsoft.com/en-us/entra/identity-platform/howto-create-service-principal-portal#option-3-create-a-new-client-secret) for the Service Principal and note it down.
+- Add the Service Principal as [Admin](https://learn.microsoft.com/en-us/fabric/fundamentals/give-access-workspaces) on the workspace you will be applying Policy Weaver.
+
+---
+## Databricks Example
+
+After creating a [Mirror Azure Databricks Catalog](https://learn.microsoft.com/en-us/fabric/mirroring/azure-databricks-tutorial) in a Microsoft Fabric Workspace, complete these Databricks specific steps:
+- In the Account Admin Console, under User Management, add your Azure Service Principal. Make sure it has the "Account admin" role and the "Service Principal:Manager" permission
+- In the Workspace Settings > Identity & Access > Manage Service Principals > add your Azure Service Principal, grant it the "Service Principal:Manager" permission, and generate an OAuth secret for the config.yaml file later (note it down)
+- Update your [config.yaml](./config.yaml) file based on your environment. 
+
+Sample Code:   
+```python
+#import the PolicyWeaver library
+from policyweaver.weaver import WeaverAgent
+from policyweaver.plugins.databricks.model import DatabricksSourceMap
+
+#Load config
+config = DatabricksSourceMap.from_yaml("path_to_your_config.yaml")
+
+#run the PolicyWeaver
+await WeaverAgent.run(config)
+```
+
+---
+
+## Next Steps
+
+Comprehensive information on configuring your YAML file,can be found [here](getting_started/0_prerequisites.md) documentation.
+
+Detailed examples for the following source systems are available:
 - [Azure Databricks Unity Catalog](getting_started/0_prerequisites.md)
 - BigQuery
 - Snowflake
 
-
-> <b>Note:</b> Policy Weaver is limited to read-only policies for now. Support 
-> for row filter and column-masking policies will be added in a future version.
-
-
-
-For more information on prerequisites and instructions on getting started, please see the [Getting Started](getting_started/0_prerequisites.md) documentation. 
-
-## OneLake Data Access Roles Overview
-
-**Policy Weaver** uses [OneLake Data Access Roles](https://learn.microsoft.com/en-us/fabric/onelake/security/get-started-data-access-roles), currently in public preview, to coalesce source system security policies into access policies that apply uniformly across the Fabric platform. With Data Access Roles, security policies are defined as role-based access controls (RBAC) on the data stored in OneLake.
-
-When data is accessed from anywhere within Fabric, the defined RBAC policies are enforced. This means that data whether is accessed from a Fabric Notebook, SQL Endpoint or Semantic model the security policies defined by the source system are enforced consistently as expected.
-
-For more details on OneLake Security concepts and how OneLake Access roles relate, please see official Microsoft documentation: [OneLake Security Overview](https://learn.microsoft.com/en-us/fabric/onelake/security/get-started-security) 
-
-
+---
 ## Contributing
 
 This project welcomes contributions and suggestions.  Most contributions require you to agree to a
@@ -46,6 +103,7 @@ This project has adopted the [Microsoft Open Source Code of Conduct](https://ope
 For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or
 contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
 
+----
 ## Trademarks
 
 This project may contain trademarks or logos for projects, products, or services. Authorized use of Microsoft 
