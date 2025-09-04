@@ -121,12 +121,16 @@ class DatabricksAPIClient:
 
         for member in dbx_group["members"]:
             if "Groups" in member["$ref"]:
-                sub_group_members = DatabricksAPIClient.get_members(member["value"], dbx_groups)
-                members.extend(sub_group_members)
-                members.append(member)
-            else:
-                member["byGroup"] = dbx_group["displayName"]
-                members.append(member)
+                subgroup_id = member["value"]
+                subgroup = dbx_groups.get(subgroup_id)
+                if subgroup.get("externalId"):
+                    member["externalId"] = subgroup["externalId"]
+                else:
+                    sub_group_members = DatabricksAPIClient.get_members(member["value"], dbx_groups)
+                    members.extend(sub_group_members)
+        
+            member["byGroup"] = dbx_group["displayName"]
+            members.append(member)
         return members
 
     def __get_account_groups__(self) -> List[DatabricksGroup]:
@@ -141,33 +145,42 @@ class DatabricksAPIClient:
             dbx_groups[g.id] = g.as_dict()
 
         for g in dbx_groups.values():
-            members = DatabricksAPIClient.get_members(g["id"], dbx_groups)
-
-            group = DatabricksGroup(
+            if g.get("externalId"):
+                group = DatabricksGroup(
                 id=g["id"],
                 name=g["displayName"],
-                members=[]
+                members=[],
+                external_id=g["externalId"]
             )
+            else:
+                members = DatabricksAPIClient.get_members(g["id"], dbx_groups)
 
-            member_ids = list()
-            for m in members:
-                if m["value"] in member_ids:
-                    continue
+                group = DatabricksGroup(
+                    id=g["id"],
+                    name=g["displayName"],
+                    members=[]
+                )
 
-                gm = DatabricksGroupMember(
-                        id=m["value"],
-                        name=m["display"]
-                    )
+                member_ids = list()
+                for m in members:
+                    if m["value"] in member_ids:
+                        continue
 
-                if m["$ref"].find("Users") > -1:
-                    gm.type = IamType.USER
-                elif m["$ref"].find("ServicePrincipals") > -1:
-                    gm.type = IamType.SERVICE_PRINCIPAL
-                else:
-                    gm.type = IamType.GROUP
+                    gm = DatabricksGroupMember(
+                            id=m["value"],
+                            name=m["display"],
+                            external_id=m.get("externalId")
+                        )
 
-                group.members.append(gm)
-                member_ids.append(m["value"])
+                    if m["$ref"].find("Users") > -1:
+                        gm.type = IamType.USER
+                    elif m["$ref"].find("ServicePrincipals") > -1:
+                        gm.type = IamType.SERVICE_PRINCIPAL
+                    else:
+                        gm.type = IamType.GROUP
+
+                    group.members.append(gm)
+                    member_ids.append(m["value"])
 
             groups.append(group)
 
@@ -289,34 +302,41 @@ class DatabricksAPIClient:
             dbx_groups[g.id] = g.as_dict()
 
         for g in dbx_groups.values():
-            members = DatabricksAPIClient.get_members(g["id"], dbx_groups)
-
-            group = DatabricksGroup(
+            if g.get("externalId"):
+                group = DatabricksGroup(
                 id=g["id"],
                 name=g["displayName"],
-                members=[]
+                members=[],
+                external_id=g["externalId"]
             )
+            else:
+                members = DatabricksAPIClient.get_members(g["id"], dbx_groups)
 
-            member_ids = list()
-            for m in members:
-                if m["value"] in member_ids:
-                    continue
-                gm = DatabricksGroupMember(
-                        id=m["value"],
-                        name=m["display"]
-                    )
+                group = DatabricksGroup(
+                    id=g["id"],
+                    name=g["displayName"],
+                    members=[]
+                )
 
-                if m["$ref"].find("Users") > -1:
-                    gm.type = IamType.USER
-                elif m["$ref"].find("ServicePrincipals") > -1:
-                    gm.type = IamType.SERVICE_PRINCIPAL
-                else:
-                    gm.type = IamType.GROUP
-                    raise ValueError(f"This should be flattened already")
+                member_ids = list()
+                for m in members:
+                    if m["value"] in member_ids:
+                        continue
+                    gm = DatabricksGroupMember(
+                            id=m["value"],
+                            name=m["display"],
+                            external_id=m.get("externalId")
+                        )
 
+                    if m["$ref"].find("Users") > -1:
+                        gm.type = IamType.USER
+                    elif m["$ref"].find("ServicePrincipals") > -1:
+                        gm.type = IamType.SERVICE_PRINCIPAL
+                    else:
+                        gm.type = IamType.GROUP
 
-                group.members.append(gm)
-                member_ids.append(m["value"])
+                    group.members.append(gm)
+                    member_ids.append(m["value"])
 
             
             groups.append(group)

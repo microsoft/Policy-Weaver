@@ -387,6 +387,13 @@ class DatabricksPolicyWeaver(PolicyWeaverCore):
                         po.id = s.external_id
                         po.app_id = s.application_id    
                         break
+            if not member:
+                for g in self.workspace.groups:
+                    if g.id == member_id and g.external_id:
+                        member = g.id
+                        type = IamType.GROUP
+                        po.id = g.external_id
+                        break
             if member:
                 po.type = type
                 permissionobjects.append(po)

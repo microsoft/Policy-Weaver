@@ -227,6 +227,7 @@ class DatabricksGroupMember(BaseObject):
         type (Optional[IamType]): The type of the member (USER, SERVICE_PRINCIPAL, or GROUP).
     """
     type: Optional[IamType] = Field(alias="type", default=None)
+    external_id: Optional[str] = Field(alias="external_id", default=None)   
 
 class DatabricksGroup(BaseObject):
     """
@@ -238,6 +239,7 @@ class DatabricksGroup(BaseObject):
         members (Optional[List[DatabricksGroupMember]]): A list of members in the group, which can include users, service principals, or other groups.
     """
     members: Optional[List[DatabricksGroupMember]] = Field(alias="members", default=None)
+    external_id: Optional[str] = Field(alias="external_id", default=None)
 
 class Workspace(BaseObject):
     """
