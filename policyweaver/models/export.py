@@ -18,6 +18,7 @@ class PermissionObject(CommonBaseModel):
     email: Optional[str] = Field(alias="email", default=None)
     app_id: Optional[str] = Field(alias="app_id", default=None)
     type: Optional[IamType] = Field(alias="type", default=None)
+    entra_object_id: Optional[str] = Field(alias="entra_object_id", default=None)
 
     @property
     def lookup_id(self) -> str:

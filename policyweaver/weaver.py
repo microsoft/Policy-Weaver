@@ -22,9 +22,9 @@ from policyweaver.models.fabric import (
     PolicyMembers,
     EntraMember,
     FabricMemberObjectType,
-    FabricPolicyAccessType,
+    FabricPolicyAccessType
 )
-from policyweaver.models.export import PolicyExport, RolePolicyExport, RolePolicy
+from policyweaver.models.export import PolicyExport, RolePolicyExport, RolePolicy, PermissionObject
 from policyweaver.models.config import SourceMap
 from policyweaver.core.enum import (
     PolicyWeaverConnectorType,
@@ -131,6 +131,7 @@ class WeaverAgent:
         self._source_snapshot_handler = None
         self._fabric_snapshot_handler = None
         self._unmapped_policy_handler = None
+        self.__graph_map = dict()
 
     async def apply(self, policy_export: PolicyExport) -> None:
         """
@@ -140,8 +141,7 @@ class WeaverAgent:
         Args:
             policy_export (PolicyExport): The exported policies from the source, containing permissions and objects.
         """
-        graph_map = await self.__get_graph_map__(policy_export)
-        self.__graph_map = graph_map
+
         if not self.config.fabric.tenant_id:
             self.config.fabric.tenant_id = ServicePrincipal.TenantId
 
@@ -155,7 +155,7 @@ class WeaverAgent:
 
         self.logger.info(f"Applying Fabric Policies to {self.config.fabric.workspace_name}...")
         self.__get_current_access_policy__()
-        self.__apply_policies__(policy_export)
+        await self.__apply_policies__(policy_export)
 
     async def apply_role(self, policy_export: RolePolicyExport) -> None:
         """
@@ -165,8 +165,7 @@ class WeaverAgent:
         Args:
             policy_export (PolicyExport): The exported policies from the source, containing permissions and objects.
         """
-        graph_map = await self.__get_graph_map_role__(policy_export)
-        self.__graph_map = graph_map
+
         if not self.config.fabric.tenant_id:
             self.config.fabric.tenant_id = ServicePrincipal.TenantId
 
@@ -180,9 +179,9 @@ class WeaverAgent:
 
         self.logger.info(f"Applying Fabric Policies to {self.config.fabric.workspace_name}...")
         self.__get_current_access_policy__()
-        self.__apply_role_policies__(policy_export)
+        await self.__apply_role_policies__(policy_export)
 
-    def __apply_role_policies__(self, policy_export: RolePolicyExport) -> None:
+    async def __apply_role_policies__(self, policy_export: RolePolicyExport) -> None:
         """
         Apply the policies to Microsoft Fabric by creating or updating data access policies.
         This method builds data access policies based on the permissions in the policy export
@@ -193,7 +192,7 @@ class WeaverAgent:
         access_policies = []
 
         for policy in policy_export.policies:
-            access_policy = self.__build_data_access_role_policy__(
+            access_policy = await self.__build_data_access_role_policy__(
                 policy, FabricPolicyAccessType.READ
             )
 
@@ -260,7 +259,7 @@ class WeaverAgent:
         else:
             self.logger.info("No Data Access Policies to sync...")
 
-    def __apply_policies__(self, policy_export: PolicyExport) -> None:
+    async def __apply_policies__(self, policy_export: PolicyExport) -> None:
         """
         Apply the policies to Microsoft Fabric by creating or updating data access policies.
         This method builds data access policies based on the permissions in the policy export
@@ -276,7 +275,7 @@ class WeaverAgent:
                     permission.name == PermissionType.SELECT
                     and permission.state == PermissionState.GRANT
                 ):
-                    access_policy = self.__build_data_access_policy__(
+                    access_policy = await self.__build_data_access_policy__(
                         policy, permission, FabricPolicyAccessType.READ
                     )
 
@@ -470,8 +469,8 @@ class WeaverAgent:
         role_name = f"{role_description.title()}{self.FabricPolicyRoleSuffix}".replace(" ", "")
 
         return re.sub(r'[^a-zA-Z0-9]', '', role_name)
-    
-    def __build_data_access_policy__(self, policy:PolicyExport, permission:PermissionType, access_policy_type:FabricPolicyAccessType) -> DataAccessPolicy:
+
+    async def __build_data_access_policy__(self, policy:PolicyExport, permission:PermissionType, access_policy_type:FabricPolicyAccessType) -> DataAccessPolicy:
         """
         Build a Data Access Policy based on the provided policy and permission.
         This method constructs a Data Access Policy object that includes the role name,
@@ -516,12 +515,18 @@ class WeaverAgent:
         )
 
         for o in permission.objects:
-            if o.lookup_id in self.__graph_map:
+            object_id = await self.__lookup_entra_object_id__(o)
+            if object_id:
+                if o.type == IamType.GROUP:
+                    object_type = FabricMemberObjectType.GROUP
+                else:
+                    object_type=FabricMemberObjectType.USER if o.type == IamType.USER else FabricMemberObjectType.SERVICE_PRINCIPAL
+                
                 dap.members.entra_members.append(
                     EntraMember(
-                        object_id=self.__graph_map[o.lookup_id],
+                        object_id=object_id,
                         tenant_id=self.config.fabric.tenant_id,
-                        object_type=FabricMemberObjectType.USER if o.type == IamType.USER else FabricMemberObjectType.SERVICE_PRINCIPAL,
+                        object_type=object_type
                     ))
             else:
                 self.logger.warning(f"POLICY WEAVER - {o.lookup_id} not found in Microsoft Graph. Skipping...")
@@ -531,8 +536,40 @@ class WeaverAgent:
         self.logger.debug(f"POLICY WEAVER - Data Access Policy - {dap.name}: {dap.model_dump_json(indent=4)}")
         
         return dap
+    
+    async def __lookup_entra_object_id__(self, object:PermissionObject) -> str:
+            """
+            Looks up the Entra object ID for a given policy object.
+            Args:
+                policy_object (PermissionObject): The policy object to look up.
+            Returns:
+                Optional[str]: The Entra object ID if found, otherwise None.
+            """
+            object_id = object.entra_object_id
+            if object_id:
+                return object_id
+            
+            if object.lookup_id in self.__graph_map:
+                return self.__graph_map[object.lookup_id]
 
-    def __build_data_access_role_policy__(self, policy:RolePolicy, access_policy_type:FabricPolicyAccessType) -> DataAccessPolicy:
+            if object.type not in [IamType.USER, IamType.SERVICE_PRINCIPAL]:
+                return None
+
+            match object.type:
+                case IamType.USER:
+                    if not object.id:
+                        self.__graph_map[object.lookup_id] = await self.graph_client.get_user_by_email(object.email)
+                    else:
+                        self.__graph_map[object.lookup_id] = object.id
+                case IamType.SERVICE_PRINCIPAL:
+                    if not object.id:
+                        self.__graph_map[object.lookup_id] = await self.graph_client.get_service_principal_by_id(object.app_id)
+                    else:
+                        self.__graph_map[object.lookup_id] = object.id
+
+            return self.__graph_map[object.lookup_id]
+
+    async def __build_data_access_role_policy__(self, policy:RolePolicy, access_policy_type:FabricPolicyAccessType) -> DataAccessPolicy:
         """
         Build a Data Access Policy based on the provided policy and permission.
         This method constructs a Data Access Policy object that includes the role name,
@@ -582,14 +619,13 @@ class WeaverAgent:
         )
 
         for o in policy.permissionobjects:
-            object_id = None
-            if o.type == IamType.GROUP:
-                object_id = o.lookup_id
-                object_type = FabricMemberObjectType.GROUP
-            elif o.lookup_id in self.__graph_map:
-                object_id = self.__graph_map[o.lookup_id]
-                object_type=FabricMemberObjectType.USER if o.type == IamType.USER else FabricMemberObjectType.SERVICE_PRINCIPAL
+            object_id = await self.__lookup_entra_object_id__(o)
             if object_id:
+                if o.type == IamType.GROUP:
+                    object_type = FabricMemberObjectType.GROUP
+                else:
+                    object_type=FabricMemberObjectType.USER if o.type == IamType.USER else FabricMemberObjectType.SERVICE_PRINCIPAL
+                
                 dap.members.entra_members.append(
                     EntraMember(
                         object_id=object_id,
@@ -604,7 +640,7 @@ class WeaverAgent:
         self.logger.debug(f"POLICY WEAVER - Data Access Policy - {dap.name}: {dap.model_dump_json(indent=4)}")
         
         return dap
-    
+        
     def source_snapshot_handler(self, policy_export:PolicyExport) -> None:
         """
         Handle the source snapshot after it is generated.

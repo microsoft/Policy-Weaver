@@ -377,7 +377,8 @@ class DatabricksPolicyWeaver(PolicyWeaverCore):
                     member = u.id
                     po.id = u.external_id
                     type = IamType.USER
-                    po.email = u.email  
+                    po.email = u.email
+                    po.entra_object_id = u.external_id
                     break
             if not member:
                 for s in self.workspace.service_principals:
@@ -385,7 +386,8 @@ class DatabricksPolicyWeaver(PolicyWeaverCore):
                         member = s.id
                         type = IamType.SERVICE_PRINCIPAL
                         po.id = s.external_id
-                        po.app_id = s.application_id    
+                        po.app_id = s.application_id
+                        po.entra_object_id = s.external_id
                         break
             if not member:
                 for g in self.workspace.groups:
@@ -393,6 +395,7 @@ class DatabricksPolicyWeaver(PolicyWeaverCore):
                         member = g.id
                         type = IamType.GROUP
                         po.id = g.external_id
+                        po.entra_object_id = g.external_id
                         break
             if member:
                 po.type = type
@@ -495,6 +498,7 @@ class DatabricksPolicyWeaver(PolicyWeaverCore):
                 if u:
                     po.id = u.external_id
                     po.email = p
+                    po.entra_object_id = u.external_id
                     self.logger.debug(f"DBX User Lookup {p} - ID {u.external_id}")
                 else:
                     self.logger.debug(f"DBX User Lookup {p} - not found, using email...")
@@ -505,10 +509,22 @@ class DatabricksPolicyWeaver(PolicyWeaverCore):
                 if s:
                     po.id = s.external_id
                     po.app_id = p
+                    po.entra_object_id = s.external_id
                     self.logger.debug(f"DBX Service Principal ID Lookup {p} - ID {s.external_id}")
                 else:
                     self.logger.debug(f"DBX Service Principal ID Lookup {p} - not found...")
                     po.app_id = p
+            elif po.type == IamType.GROUP:
+                g = self.workspace.lookup_group_by_name(p)
+
+                if g:
+                    po.id = g.external_id
+                    po.email = None
+                    po.app_id = None
+                    po.entra_object_id = g.external_id
+                    self.logger.debug(f"DBX Group Lookup {p} - ID {g.external_id}")
+                else:
+                    self.logger.debug(f"DBX Group Lookup {p} - not found...")
             else:
                 po.id = None
                 po.email = None
@@ -657,12 +673,12 @@ class DatabricksPolicyWeaver(PolicyWeaverCore):
             if any(p in self.dbx_read_permissions for p in r.privileges):
                 if self.__has_read_permissions__(r.principal, key):
                     if r.get_principal_type() == IamType.GROUP: 
-                        indentities = self.workspace.get_workspace_identities()
+                        identities = self.workspace.get_workspace_identities(include_entra_groups=True)
 
-                        for identity in indentities:
+                        for identity in identities:
                             if self.__is_in_group__(identity, r.principal):
                                 if not identity in user_permissions:
-                                    self.logger.debug(f"DBX User ({identity}) added by {r.principal} group for {key}...")
+                                    self.logger.debug(f"DBX User/Entra Group ({identity}) added by {r.principal} group for {key}...")
                                     user_permissions.append((identity, "indirect"))
                     if not r.principal in user_permissions:
                         self.logger.debug(f"DBX Principal ({r.principal}) direct add for {key}...")
