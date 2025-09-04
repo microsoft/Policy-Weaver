@@ -30,7 +30,9 @@ class PermissionObject(CommonBaseModel):
         if self.type == IamType.USER:
             return self.email
         elif self.type == IamType.SERVICE_PRINCIPAL:
-            return self.app_id  
+            return self.app_id
+        elif self.type == IamType.GROUP:
+            return self.id
         return self.id
 
 class Permission(CommonBaseModel):

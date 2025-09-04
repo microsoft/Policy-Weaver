@@ -90,7 +90,7 @@ class PrivilegeItem(CommonBaseModel):
     Represents a specific privilege item
     Attributes:
         catalog (Optional[str]): The name of the catalog.
-        schema (Optional[str]): The name of the schema.
+        catalog_schema (Optional[str]): The name of the schema.
         table (Optional[str]): The name of the table.
         role (Optional[str]): The role associated with the privilege.
         type (Optional[str]): The type of the privilege.
@@ -99,7 +99,7 @@ class PrivilegeItem(CommonBaseModel):
     """
 
     catalog: Optional[str] = Field(alias="catalog", default=None)
-    schema: Optional[str] = Field(alias="schema", default=None)
+    catalog_schema: Optional[str] = Field(alias="schema", default=None)
     table: Optional[str] = Field(alias="table", default=None)
     role: Optional[str] = Field(alias="role", default=None)
     type: Optional[str] = Field(alias="type", default=None)
@@ -227,6 +227,7 @@ class DatabricksGroupMember(BaseObject):
         type (Optional[IamType]): The type of the member (USER, SERVICE_PRINCIPAL, or GROUP).
     """
     type: Optional[IamType] = Field(alias="type", default=None)
+    external_id: Optional[str] = Field(alias="external_id", default=None)   
 
 class DatabricksGroup(BaseObject):
     """
@@ -238,6 +239,7 @@ class DatabricksGroup(BaseObject):
         members (Optional[List[DatabricksGroupMember]]): A list of members in the group, which can include users, service principals, or other groups.
     """
     members: Optional[List[DatabricksGroupMember]] = Field(alias="members", default=None)
+    external_id: Optional[str] = Field(alias="external_id", default=None)
 
 class Workspace(BaseObject):
     """

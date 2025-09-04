@@ -96,8 +96,8 @@ class WeaverAgent:
         match config.type:
             case PolicyWeaverConnectorType.UNITY_CATALOG:
                 src = DatabricksPolicyWeaver(config)
-            case PolicyWeaverConnectorType.SNOWFLAKE:
-                src = SnowflakePolicyWeaver(config)
+            # case PolicyWeaverConnectorType.SNOWFLAKE:
+            #     src = SnowflakePolicyWeaver(config)
             case _:
                 pass
         
@@ -140,8 +140,8 @@ class WeaverAgent:
         Args:
             policy_export (PolicyExport): The exported policies from the source, containing permissions and objects.
         """
-        self.__graph_map = await self.__get_graph_map__(policy_export)
-
+        graph_map = await self.__get_graph_map__(policy_export)
+        self.__graph_map = graph_map
         if not self.config.fabric.tenant_id:
             self.config.fabric.tenant_id = ServicePrincipal.TenantId
 
@@ -165,8 +165,8 @@ class WeaverAgent:
         Args:
             policy_export (PolicyExport): The exported policies from the source, containing permissions and objects.
         """
-        self.__graph_map = await self.__get_graph_map_role__(policy_export)
-
+        graph_map = await self.__get_graph_map_role__(policy_export)
+        self.__graph_map = graph_map
         if not self.config.fabric.tenant_id:
             self.config.fabric.tenant_id = ServicePrincipal.TenantId
 
@@ -582,12 +582,19 @@ class WeaverAgent:
         )
 
         for o in policy.permissionobjects:
-            if o.lookup_id in self.__graph_map:
+            object_id = None
+            if o.type == IamType.GROUP:
+                object_id = o.lookup_id
+                object_type = FabricMemberObjectType.GROUP
+            elif o.lookup_id in self.__graph_map:
+                object_id = self.__graph_map[o.lookup_id]
+                object_type=FabricMemberObjectType.USER if o.type == IamType.USER else FabricMemberObjectType.SERVICE_PRINCIPAL
+            if object_id:
                 dap.members.entra_members.append(
                     EntraMember(
-                        object_id=self.__graph_map[o.lookup_id],
+                        object_id=object_id,
                         tenant_id=self.config.fabric.tenant_id,
-                        object_type=FabricMemberObjectType.USER if o.type == IamType.USER else FabricMemberObjectType.SERVICE_PRINCIPAL,
+                        object_type=object_type
                     ))
             else:
                 self.logger.warning(f"POLICY WEAVER - {o.lookup_id} not found in Microsoft Graph. Skipping...")
