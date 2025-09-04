@@ -13,8 +13,8 @@ sys.path.insert(0, os.path.abspath('../..'))
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = 'policyweaver'
-copyright = '2025, Tonio Lora, Christopher Price, Emily Nguyen'
-author = 'Tonio Lora, Christopher Price, Emily Nguyen'
+copyright = '2025, Tonio Lora, Christopher Price, Melissa Lacefield, Andreas Rederer, Christian Wolff'
+author = '2025, Tonio Lora, Christopher Price, Melissa Lacefield, Andreas Rederer, Christian Wolff'
 release = '0.2.6'
 
 # -- General configuration ---------------------------------------------------
