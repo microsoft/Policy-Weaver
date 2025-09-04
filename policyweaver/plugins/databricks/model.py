@@ -259,7 +259,7 @@ class Workspace(BaseObject):
     groups: Optional[List[DatabricksGroup]] = Field(alias="groups", default=None)
     service_principals: Optional[List[DatabricksServicePrincipal]] = Field(alias="service_principals", default=None)
 
-    def get_workspace_identities(self, include_groups:bool=False) -> List[str]:
+    def get_workspace_identities(self, include_groups:bool=False, include_entra_groups:bool=False) -> List[str]:
         """
         Returns a list of identities associated with the workspace.
         This includes user emails, service principal application IDs, and optionally group names.
@@ -278,6 +278,9 @@ class Workspace(BaseObject):
 
         if include_groups and self.groups:
             identities.extend([g.name for g in self.groups if g.name])
+        
+        if not include_groups and include_entra_groups and self.groups:
+            identities.extend([g.name for g in self.groups if g.name and g.external_id])
 
         return identities
     
@@ -326,7 +329,7 @@ class Workspace(BaseObject):
 
         return None
     
-    def lookup_group_by_name(self, name: str) -> DatabricksUser:
+    def lookup_group_by_name(self, name: str) -> DatabricksGroup:
         """
         Looks up a group by its name in the workspace.
         Args:
