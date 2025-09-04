@@ -45,6 +45,9 @@ Create and activate virtual environments and then install **Policy Weaver**:
 ```bash
 $ pip install policy-weaver
 ```
+
+Make sure your Python version is greater or equal than 3.11. If you are running this on a Spark notebook, make sure it uses Spark 3.5 or higher.
+
 ---
 ## Prerequisites
 
