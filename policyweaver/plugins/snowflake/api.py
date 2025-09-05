@@ -85,21 +85,33 @@ class SnowflakeAPIClient:
         """
 
         if self.connection.private_key_file:
-            return snowflake.connector.connect(
-                user=self.connection.user_name,
-                account=self.connection.account_name,
-                warehouse=self.connection.warehouse,
-                private_key_file=self.connection.private_key_file,
-                private_key_file_pwd=self.connection.password,
-                disable_ocsp_checks=True
-            )
+
+            private_key_file = self.connection.private_key_file
+            private_key_file_pwd = self.connection.password
+
+            conn_params = {
+                'account': self.connection.account_name,
+                'user': self.connection.user_name,
+                'authenticator': 'SNOWFLAKE_JWT',
+                'private_key_file': private_key_file,
+                'private_key_file_pwd':private_key_file_pwd,
+                'warehouse': self.connection.warehouse,
+                'disable_ocsp_checks': True,
+                'database': 'SNOWFLAKE',
+                'schema': 'ACCOUNT_USAGE'
+            }
+
+            ctx = snowflake.connector.connect(**conn_params)
+            return ctx
         else:
             return snowflake.connector.connect(
                 user=self.connection.user_name,
                 password=self.connection.password,
                 account=self.connection.account_name,
                 warehouse=self.connection.warehouse,
-                disable_ocsp_checks=True
+                disable_ocsp_checks=True,
+                database="SNOWFLAKE",
+                schema="ACCOUNT_USAGE"
             )
         
 
