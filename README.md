@@ -28,15 +28,16 @@
 A Python-based accelerator designed to automate the synchronization of security policies from different source catalogs with [OneLake Security](https://learn.microsoft.com/en-us/fabric/onelake/security/get-started-data-access-roles) roles. This is required when using OneLake mirroring to ensure consistent security across data platforms.
 
 
-## 🚀 Features
+## :rocket: Features
 - **Microsoft Fabric Support**: Direct integration with Fabric Mirrored Databases and OneLake Security.
 - **Runs anywhere**: It can be run within Fabric Notebook or from anywhere with a Python runtime.
 - **Effective Policies**: Resolves effective read privileges automatically, traversing nested groups and roles as required.
 - **Pluggable Framework**: Supports Azure Databricks and Snowflake policies, with more connectors to come
+- **Secure**: Can use Azure Key Vault to securely manage sensitive information like Service Principal credentials and API tokens.
 
-> 📌 **Note:** Row-level and column-level security extraction will be implemented in the next version, once these features become available in OneLake Security.
+> :pushpin: **Note:** Row-level and column-level security extraction will be implemented in the next version, once these features become available in OneLake Security.
 
-## 📋 Prerequisites
+## :clipboard: Prerequisites
 Before installing and running this solution, ensure you have:
 - **Azure [Service Principal](https://learn.microsoft.com/en-us/entra/identity-platform/howto-create-service-principal-portal)** with the following [Microsoft Graph API permissions](https://learn.microsoft.com/en-us/graph/permissions-reference):
   - `Application.Read.All`
@@ -46,23 +47,37 @@ Before installing and running this solution, ensure you have:
 - [A client secret](https://learn.microsoft.com/en-us/entra/identity-platform/howto-create-service-principal-portal#option-3-create-a-new-client-secret) for the Service Principal
 - Added the Service Principal as [Admin](https://learn.microsoft.com/en-us/fabric/fundamentals/give-access-workspaces) on the Fabric Workspace cpontaining the mirror database.
 
-> 📌 **Note:** Every source catalog has additional pre-requisites
+> :pushpin: **Note:** Every source catalog has additional pre-requisites
 
-## 🛠️ Installation
+## :hammer_and_wrench: Installation
 Make sure your Python version is greater or equal than 3.11. Then, install the library:
 ```bash
 $ pip install policy-weaver
 ```
 
 
-## Databricks Example
+## :thread: Databricks Example
 
-After creating a [Mirror Azure Databricks Catalog](https://learn.microsoft.com/en-us/fabric/mirroring/azure-databricks-tutorial) in a Microsoft Fabric Workspace, complete these Databricks specific steps:
-- In the Account Admin Console, under User Management, add your Azure Service Principal. Make sure it has the "Account admin" role and the "Service Principal:Manager" permission
-- In the Workspace Settings > Identity & Access > Manage Service Principals > add your Azure Service Principal, grant it the "Service Principal:Manager" permission, and generate an OAuth secret for the config.yaml file later (note it down)
-- Update your [config.yaml](./config.yaml) file based on your environment. 
+### Azure Databricks Configuration
+1. Create a [Mirror Azure Databricks Catalog](https://learn.microsoft.com/en-us/fabric/mirroring/azure-databricks-tutorial) in a Microsoft Fabric Workspace\
+1. Account Admin Console :arrow_right: User Management :arrow_right: Add your Azure Service Principal. 
+    1. **Role**: "Account admin"
+    1. **Permission**: "Service Principal:Manager"
+1. Workspace Settings :arrow_right: Identity & Access :arrow_right: Manage Service Principals :arrow_right: Add your Azure Service Principal
+    1. **Permission**: "Service Principal:Manager" permission, and 
+    1. **Generate** an OAuth secret for your config.yaml file
 
-Sample Code:   
+### Update your Configuration file
+Download this [config.yaml](./config.yaml) file template and update it based on your environment.
+
+For Databricks specifically, you will need to provide:
+
+- **workspace_url**: https://adb-xxxxxxxxxxx.azuredatabricks.net/
+- **account_id**: your databricks account id
+- **account_api_token**: Depending on the keyvault setting: the keyvault secret name or your databricks secret
+
+### Run the Weaver!
+This is all the code you need. Just make sure Policy Weaver can access your YAML configuration file.
 ```python
 #import the PolicyWeaver library
 from policyweaver.weaver import WeaverAgent
@@ -75,7 +90,7 @@ config = DatabricksSourceMap.from_yaml("path_to_your_config.yaml")
 await WeaverAgent.run(config)
 ```
 
----
+All done! You can now check your Microsoft Fabric Mirrored Azure Databricks catalog new policies.
 
 ## Next Steps
 
@@ -86,8 +101,7 @@ Detailed examples for the following source systems are available:
 - BigQuery
 - Snowflake
 
----
-## Contributing
+## :raising_hand: Contributing
 
 This project welcomes contributions and suggestions.  Most contributions require you to agree to a
 Contributor License Agreement (CLA) declaring that you have the right to, and actually do, grant us
@@ -101,8 +115,11 @@ This project has adopted the [Microsoft Open Source Code of Conduct](https://ope
 For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or
 contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
 
-----
-## Trademarks
+## :scroll: License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## :shield: Trademarks
 
 This project may contain trademarks or logos for projects, products, or services. Authorized use of Microsoft 
 trademarks or logos is subject to and must follow 
