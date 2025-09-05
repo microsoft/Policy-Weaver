@@ -404,16 +404,10 @@ class DatabricksPolicyWeaver(PolicyWeaverCore):
         if not permissionobjects:
             return None
 
-        name = f"{self.config.fabric.fabric_role_prefix}{principal}{self.config.fabric.fabric_role_suffix}"
-        # replace all signs
-        name = name.replace("-", "").replace("_", "").replace(" ", "").replace(".", "")
-        name = name.replace("@", "").replace("'", "").replace("`", "").replace("!", "")
-        # replace all non alphanumeric signs
-        name = re.sub(r'\W+', '', name)
         policy = RolePolicy(
             permissionobjects=permissionobjects,
             permissionscopes=permission_scopes,
-            name=name,
+            name=principal,
         )
 
 

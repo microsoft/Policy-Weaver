@@ -97,8 +97,8 @@ class WeaverAgent:
         match config.type:
             case PolicyWeaverConnectorType.UNITY_CATALOG:
                 src = DatabricksPolicyWeaver(config)
-            # case PolicyWeaverConnectorType.SNOWFLAKE:
-            #     src = SnowflakePolicyWeaver(config)
+            case PolicyWeaverConnectorType.SNOWFLAKE:
+                src = SnowflakePolicyWeaver(config)
             case _:
                 pass
         
@@ -196,7 +196,8 @@ class WeaverAgent:
             access_policy = await self.__build_data_access_role_policy__(
                 policy, FabricPolicyAccessType.READ
             )
-
+            if not access_policy:
+                continue
             self.fabric_snapshot_handler(access_policy)
             access_policies.append(access_policy)
 
@@ -279,6 +280,8 @@ class WeaverAgent:
                     access_policy = await self.__build_data_access_policy__(
                         policy, permission, FabricPolicyAccessType.READ
                     )
+                    if not access_policy:
+                        continue
 
                     self.fabric_snapshot_handler(access_policy)
                     access_policies.append(access_policy)
@@ -531,9 +534,14 @@ class WeaverAgent:
                     ))
             else:
                 self.logger.warning(f"POLICY WEAVER - {o.lookup_id} not found in Microsoft Graph. Skipping...")
-                self._unmapped_policy_handler(o.lookup_id, policy)
+                if self._unmapped_policy_handler:
+                    self._unmapped_policy_handler(o.lookup_id, policy)
                 continue
 
+        if dap.members.entra_members == []:
+            self.logger.warning(f"POLICY WEAVER - No valid members found for policy {policy.name}. Skipping...")
+            return None
+        
         self.logger.debug(f"POLICY WEAVER - Data Access Policy - {dap.name}: {dap.model_dump_json(indent=4)}")
         
         return dap
@@ -583,8 +591,12 @@ class WeaverAgent:
             DataAccessPolicy: The constructed Data Access Policy object.
         """
 
-        role_name = policy.name
-
+        role_name = f"{self.config.fabric.fabric_role_prefix}{policy.name}{self.config.fabric.fabric_role_suffix}"
+        # replace all signs
+        role_name = role_name.replace("-", "").replace("_", "").replace(" ", "").replace(".", "")
+        role_name = role_name.replace("@", "").replace("'", "").replace("`", "").replace("!", "")
+        # replace all non alphanumeric signs
+        role_name = re.sub(r'\W+', '', role_name)
 
         table_paths = []
         for permission_scope in policy.permissionscopes:
@@ -594,6 +606,10 @@ class WeaverAgent:
                     if table_path != "*":
                         table_path = f"/{table_path}"
                     table_paths.append(table_path)
+
+        if not table_paths:
+            self.logger.warning(f"POLICY WEAVER - No valid table mappings found for policy {policy.name}. Skipping...")
+            return None
 
         permission_scopes = [
                         PolicyPermissionScope(
@@ -635,8 +651,13 @@ class WeaverAgent:
                     ))
             else:
                 self.logger.warning(f"POLICY WEAVER - {o.lookup_id} not found in Microsoft Graph. Skipping...")
-                self._unmapped_policy_handler(o.lookup_id, policy)
+                if self._unmapped_policy_handler:
+                    self._unmapped_policy_handler(o.lookup_id, policy)
                 continue
+        
+        if dap.members.entra_members == []:
+            self.logger.warning(f"POLICY WEAVER - No valid members found for policy {policy.name}. Skipping...")
+            return None
 
         self.logger.debug(f"POLICY WEAVER - Data Access Policy - {dap.name}: {dap.model_dump_json(indent=4)}")
         
