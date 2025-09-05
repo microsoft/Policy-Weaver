@@ -470,7 +470,13 @@ class WeaverAgent:
         else:
             role_description = policy.catalog.replace(" ", "")
 
-        role_name = f"{role_description.title()}{self.FabricPolicyRoleSuffix}".replace(" ", "")
+
+        role_name = f"{self.config.fabric.fabric_role_prefix}{role_description.title()}{self.config.fabric.fabric_role_suffix}"
+        # replace all signs
+        role_name = role_name.replace("-", "").replace("_", "").replace(" ", "").replace(".", "")
+        role_name = role_name.replace("@", "").replace("'", "").replace("`", "").replace("!", "")
+        # replace all non alphanumeric signs
+        role_name = re.sub(r'\W+', '', role_name)
 
         return re.sub(r'[^a-zA-Z0-9]', '', role_name)
 
