@@ -1,10 +1,8 @@
 from pydantic import Field
-from typing import Optional, List, Dict
+from typing import Optional, List
 
-from policyweaver.core.utility import Utils
 from policyweaver.models.common import CommonBaseModel
 from policyweaver.models.config import SourceMap
-from policyweaver.core.enum import IamType
 
 
 class SnowflakeUserOrRole(CommonBaseModel):
@@ -62,6 +60,16 @@ class SnowflakeRoleMemberMap(CommonBaseModel):
     roles: List["SnowflakeRole"] = Field(alias="roles", default_factory=list)
 
 class SnowflakeGrant(CommonBaseModel):
+    """
+    Represents a grant in the Snowflake workspace.
+    Attributes:
+        privilege (Optional[str]): The privilege granted.
+        granted_on (Optional[str]): The object type on which the privilege is granted.
+        table_catalog (Optional[str]): The catalog of the table.
+        table_schema (Optional[str]): The schema of the table.
+        name (Optional[str]): The name of the object.
+        grantee_name (Optional[str]): The name of the grantee (user or role).
+    """
     
     privilege: Optional[str] = Field(alias="privilege", default=None)
     granted_on: Optional[str] = Field(alias="granted_on", default=None)
@@ -73,6 +81,10 @@ class SnowflakeGrant(CommonBaseModel):
 class SnowflakeDatabaseMap(CommonBaseModel):
     """
     A collection of Snowflake users, roles, and grants for a database
+    Attributes:
+        users (List[SnowflakeUser]): The list of users in the Snowflake database.
+        roles (List[SnowflakeRole]): The list of roles in the Snowflake database.
+        grants (List[SnowflakeGrant]): The list of grants in the Snowflake database.
     """
     users: List[SnowflakeUser] = Field(alias="users", default_factory=list)
     roles: List[SnowflakeRole] = Field(alias="roles", default_factory=list)
@@ -90,6 +102,7 @@ class SnowflakeConnection(CommonBaseModel):
     account_name: Optional[str] = Field(alias="account_name", default=None)
     user_name: Optional[str] = Field(alias="user_name", default=None)
     password: Optional[str] = Field(alias="password", default=None)
+    private_key_file: Optional[str] = Field(alias="private_key_file", default=None)
     warehouse: Optional[str] = Field(alias="warehouse", default=None)
 
 class SnowflakeSourceConfig(CommonBaseModel):
@@ -101,11 +114,19 @@ class SnowflakeSourceConfig(CommonBaseModel):
         user_name (Optional[str]): The user name for accessing the Snowflake account.
         password (Optional[str]): The password for accessing the Snowflake account.
         warehouse (Optional[str]): The warehouse to use for the Snowflake connection.
+        private_key_file (Optional[str]): The path to the private key file for accessing the Snowflake account.
     """
     account_name: Optional[str] = Field(alias="account_name", default=None)
     user_name: Optional[str] = Field(alias="user_name", default=None)
     password: Optional[str] = Field(alias="password", default=None)
     warehouse: Optional[str] = Field(alias="warehouse", default=None)
+    private_key_file: Optional[str] = Field(alias="private_key_file", default=None)
 
 class SnowflakeSourceMap(SourceMap):
+    """
+    Represents the configuration for a Snowflake source map.
+    This class extends SourceMap to include Snowflake-specific configuration.
+    Attributes:
+        snowflake (Optional[SnowflakeSourceConfig]): The Snowflake source configuration.
+    """
     snowflake: Optional[SnowflakeSourceConfig] = Field(alias="snowflake", default=None)

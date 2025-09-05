@@ -53,6 +53,7 @@ class SnowflakePolicyWeaver(PolicyWeaverCore):
         os.environ["SNOWFLAKE_USER"] = config.snowflake.user_name
         os.environ["SNOWFLAKE_PASSWORD"] = config.snowflake.password
         os.environ["SNOWFLAKE_WAREHOUSE"] = config.snowflake.warehouse
+        os.environ["SNOWFLAKE_PRIVATE_KEY_FILE"] = config.snowflake.private_key_file
 
     def __config_validation(self, config:SnowflakeSourceMap) -> None:
         """
