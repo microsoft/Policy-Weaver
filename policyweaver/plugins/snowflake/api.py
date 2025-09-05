@@ -49,12 +49,23 @@ class SnowflakeAPIClient:
         """
         self.logger = logging.getLogger("POLICY_WEAVER")
 
-        self.connection = SnowflakeConnection(
-            user_name=os.environ["SNOWFLAKE_USER"],
-            password=os.environ["SNOWFLAKE_PASSWORD"],
-            account_name=os.environ["SNOWFLAKE_ACCOUNT"],
-            warehouse=os.environ["SNOWFLAKE_WAREHOUSE"]
-        )
+        private_key_file = os.getenv("SNOWFLAKE_PRIVATE_KEY_FILE", None)
+        if not private_key_file or not os.path.isfile(private_key_file):
+            self.logger.warning("SNOWFLAKE_PRIVATE_KEY_FILE environment variable is not set or the file does not exist. Trying user/password authentication.")
+            self.connection = SnowflakeConnection(
+                user_name=os.environ["SNOWFLAKE_USER"],
+                password=os.environ["SNOWFLAKE_PASSWORD"],
+                account_name=os.environ["SNOWFLAKE_ACCOUNT"],
+                warehouse=os.environ["SNOWFLAKE_WAREHOUSE"]
+            )
+        else:
+            self.connection = SnowflakeConnection(
+                user_name=os.environ["SNOWFLAKE_USER"],
+                password=os.environ["SNOWFLAKE_PASSWORD"],
+                account_name=os.environ["SNOWFLAKE_ACCOUNT"],
+                warehouse=os.environ["SNOWFLAKE_WAREHOUSE"],
+                private_key_file=private_key_file
+            )
 
         self.users = None
         self.roles = None
@@ -73,13 +84,36 @@ class SnowflakeAPIClient:
             EnvironmentError: If required environment variables are not set.
         """
 
-        return snowflake.connector.connect(
-            user=self.connection.user_name,
-            password=self.connection.password,
-            account=self.connection.account_name,
-            warehouse=self.connection.warehouse,
-            disable_ocsp_checks=True
-        )
+        if self.connection.private_key_file:
+
+            private_key_file = self.connection.private_key_file
+            private_key_file_pwd = self.connection.password
+
+            conn_params = {
+                'account': self.connection.account_name,
+                'user': self.connection.user_name,
+                'authenticator': 'SNOWFLAKE_JWT',
+                'private_key_file': private_key_file,
+                'private_key_file_pwd':private_key_file_pwd,
+                'warehouse': self.connection.warehouse,
+                'disable_ocsp_checks': True,
+                'database': 'SNOWFLAKE',
+                'schema': 'ACCOUNT_USAGE'
+            }
+
+            ctx = snowflake.connector.connect(**conn_params)
+            return ctx
+        else:
+            return snowflake.connector.connect(
+                user=self.connection.user_name,
+                password=self.connection.password,
+                account=self.connection.account_name,
+                warehouse=self.connection.warehouse,
+                disable_ocsp_checks=True,
+                database="SNOWFLAKE",
+                schema="ACCOUNT_USAGE"
+            )
+        
 
     def __run_query__(self, query: str, columns: List[str]) -> List[dict]:
         """

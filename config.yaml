@@ -25,5 +25,6 @@ databricks:
 snowflake:
   account_name: <name of the snowflake account>
   user_name: <user name to login>
-  password: <password to login>
+  private_key_file: <path to the private key file>
+  password: <password to login or passphrase for the private key if applicable>
   warehouse: <warehouse name>
