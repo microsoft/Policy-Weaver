@@ -186,8 +186,8 @@ class DatabricksAPIClient:
 
         self.logger.debug(f"DBX ACCOUNT Groups: {json.dumps(groups, default=pydantic_encoder, indent=4)}")
         return groups
-        
-    def get_workspace_policy_map(self, source: Source) -> Workspace:
+
+    def get_workspace_policy_map(self, source: Source) -> tuple[Account, Workspace]:
         """
         Fetches the workspace policy map for a given source.
         Args:
