@@ -227,6 +227,7 @@ class DatabricksGroupMember(BaseObject):
         type (Optional[IamType]): The type of the member (USER, SERVICE_PRINCIPAL, or GROUP).
     """
     type: Optional[IamType] = Field(alias="type", default=None)
+    external_id: Optional[str] = Field(alias="external_id", default=None)   
 
 class DatabricksGroup(BaseObject):
     """
@@ -238,6 +239,7 @@ class DatabricksGroup(BaseObject):
         members (Optional[List[DatabricksGroupMember]]): A list of members in the group, which can include users, service principals, or other groups.
     """
     members: Optional[List[DatabricksGroupMember]] = Field(alias="members", default=None)
+    external_id: Optional[str] = Field(alias="external_id", default=None)
 
 class Workspace(BaseObject):
     """
@@ -257,7 +259,7 @@ class Workspace(BaseObject):
     groups: Optional[List[DatabricksGroup]] = Field(alias="groups", default=None)
     service_principals: Optional[List[DatabricksServicePrincipal]] = Field(alias="service_principals", default=None)
 
-    def get_workspace_identities(self, include_groups:bool=False) -> List[str]:
+    def get_workspace_identities(self, include_groups:bool=False, include_entra_groups:bool=False) -> List[str]:
         """
         Returns a list of identities associated with the workspace.
         This includes user emails, service principal application IDs, and optionally group names.
@@ -276,6 +278,9 @@ class Workspace(BaseObject):
 
         if include_groups and self.groups:
             identities.extend([g.name for g in self.groups if g.name])
+        
+        if not include_groups and include_entra_groups and self.groups:
+            identities.extend([g.name for g in self.groups if g.name and g.external_id])
 
         return identities
     
@@ -324,7 +329,7 @@ class Workspace(BaseObject):
 
         return None
     
-    def lookup_group_by_name(self, name: str) -> DatabricksUser:
+    def lookup_group_by_name(self, name: str) -> DatabricksGroup:
         """
         Looks up a group by its name in the workspace.
         Args:
