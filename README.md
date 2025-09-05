@@ -49,12 +49,10 @@ Before installing and running this solution, ensure you have:
 > 📌 **Note:** Every source catalog has additional pre-requisites
 
 ## 🛠️ Installation
-Create and activate virtual environments and then install **Policy Weaver**:
+Make sure your Python version is greater or equal than 3.11. Then, install the library:
 ```bash
 $ pip install policy-weaver
 ```
-
-Make sure your Python version is greater or equal than 3.11. If you are running this on a Spark notebook, make sure it uses Spark 3.5 or higher.
 
 
 ## Databricks Example
