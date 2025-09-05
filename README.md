@@ -2,8 +2,6 @@
   <img src="./policyweaver.png" alt="Policy Weaver icon" width="200"/>
 </p>
 
-<p align="center">
-    <em>Policy Weaver, synchronizes data access policies across platforms.</em>
 </p>
 <p align="center">
 <a href="https://badgen.net/github/license/microsoft/Policy-Weaver" target="_blank">
@@ -25,22 +23,32 @@
 
 ---
 
-**Policy Weaver** is a Python-based accelerator designed to automate the synchronization of security policies from different source catalogs with [OneLake Security](https://learn.microsoft.com/en-us/fabric/onelake/security/get-started-data-access-roles). This is required when using OneLake mirroring to ensure consistent security across data platforms.
+# Policy Weaver: synchronizes data access policies across platforms
 
-It currently supports Azure Databricks and Snowflake. Policy Weaver is designed with a pluggable framework, so new connectors can be added to support additional data sources as needed.
+A Python-based accelerator designed to automate the synchronization of security policies from different source catalogs with [OneLake Security](https://learn.microsoft.com/en-us/fabric/onelake/security/get-started-data-access-roles) roles. This is required when using OneLake mirroring to ensure consistent security across data platforms.
 
-Key Features:
-- Lightweight Python library that can be run either within Fabric Notebook or from anywhere with a Python runtime.
-- Extracts security policies from Databricks via API and maps them to OneLake Security roles.
-- Resolves effective read privileges automatically, following Databricks documentation—no manual mapping required.
-- Simple configuration and lightweight deployment; can run locally or in a Fabric notebook.
-- Syncs changes in Databricks policies to OneLake Security, updating or removing roles as needed.
-- Supports catalog, schema, and table-level policies.
 
-Row-level and column-level security extraction will be implemented in the next version, once these features become available in OneLake Security.
+## 🚀 Features
+- **Microsoft Fabric Support**: Direct integration with Fabric Mirrored Databases and OneLake Security.
+- **Runs anywhere**: It can be run within Fabric Notebook or from anywhere with a Python runtime.
+- **Effective Policies**: Resolves effective read privileges automatically, traversing nested groups and roles as required.
+- **Pluggable Framework**: Supports Azure Databricks and Snowflake policies, with more connectors to come
 
-----
-## Installation
+> 📌 **Note:** Row-level and column-level security extraction will be implemented in the next version, once these features become available in OneLake Security.
+
+## 📋 Prerequisites
+Before installing and running this solution, ensure you have:
+- **Azure [Service Principal](https://learn.microsoft.com/en-us/entra/identity-platform/howto-create-service-principal-portal)** with the following [Microsoft Graph API permissions](https://learn.microsoft.com/en-us/graph/permissions-reference):
+  - `Application.Read.All`
+  - `User.Read`
+  - `User.Read.All`
+  - `Directory.Read.All`
+- [A client secret](https://learn.microsoft.com/en-us/entra/identity-platform/howto-create-service-principal-portal#option-3-create-a-new-client-secret) for the Service Principal
+- Added the Service Principal as [Admin](https://learn.microsoft.com/en-us/fabric/fundamentals/give-access-workspaces) on the Fabric Workspace cpontaining the mirror database.
+
+> 📌 **Note:** Every source catalog has additional pre-requisites
+
+## 🛠️ Installation
 Create and activate virtual environments and then install **Policy Weaver**:
 ```bash
 $ pip install policy-weaver
@@ -48,18 +56,7 @@ $ pip install policy-weaver
 
 Make sure your Python version is greater or equal than 3.11. If you are running this on a Spark notebook, make sure it uses Spark 3.5 or higher.
 
----
-## Prerequisites
 
-- Create an Azure [Service Principal](https://learn.microsoft.com/en-us/entra/identity-platform/howto-create-service-principal-portal) account with the following [Microsoft Graph API permissions](https://learn.microsoft.com/en-us/graph/permissions-reference):
-  - `Application.Read.All`
-  - `User.Read`
-  - `User.Read.All`
-  - `Directory.Read.All`
-- [Create a new client secret](https://learn.microsoft.com/en-us/entra/identity-platform/howto-create-service-principal-portal#option-3-create-a-new-client-secret) for the Service Principal and note it down.
-- Add the Service Principal as [Admin](https://learn.microsoft.com/en-us/fabric/fundamentals/give-access-workspaces) on the workspace you will be applying Policy Weaver.
-
----
 ## Databricks Example
 
 After creating a [Mirror Azure Databricks Catalog](https://learn.microsoft.com/en-us/fabric/mirroring/azure-databricks-tutorial) in a Microsoft Fabric Workspace, complete these Databricks specific steps:
