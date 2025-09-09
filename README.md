@@ -25,11 +25,11 @@
 
 # Policy Weaver: synchronizes data access policies across platforms
 
-A Python-based accelerator designed to automate the synchronization of security policies from different source catalogs with [OneLake Security](https://learn.microsoft.com/en-us/fabric/onelake/security/get-started-data-access-roles) roles. This is required when using OneLake mirroring to ensure consistent security across data platforms.
+A Python-based accelerator designed to automate the synchronization of security policies from different source catalogs with [OneLake Security](https://learn.microsoft.com/en-us/fabric/onelake/security/get-started-data-access-roles) roles. While mirroring is only synchronizing the data, **Policy Weaver** is adding the missing piece which is mirroring data access policies to ensure consistent security across data platforms.
 
 
 ## :rocket: Features
-- **Microsoft Fabric Support**: Direct integration with Fabric Mirrored Databases and OneLake Security.
+- **Microsoft Fabric Support**: Direct integration with Fabric Mirrored Databases/Catalogs and OneLake Security.
 - **Runs anywhere**: It can be run within Fabric Notebook or from anywhere with a Python runtime.
 - **Effective Policies**: Resolves effective read privileges automatically, traversing nested groups and roles as required.
 - **Pluggable Framework**: Supports Azure Databricks and Snowflake policies, with more connectors planned.
@@ -39,13 +39,10 @@ A Python-based accelerator designed to automate the synchronization of security 
 
 ## :clipboard: Prerequisites
 Before installing and running this solution, ensure you have:
-- **Azure [Service Principal](https://learn.microsoft.com/en-us/entra/identity-platform/howto-create-service-principal-portal)** with the following [Microsoft Graph API permissions](https://learn.microsoft.com/en-us/graph/permissions-reference):
-  - `Application.Read.All`
-  - `User.Read`
+- **Azure [Service Principal](https://learn.microsoft.com/en-us/entra/identity-platform/howto-create-service-principal-portal)** with the following [Microsoft Graph API permissions](https://learn.microsoft.com/en-us/graph/permissions-reference) (*This is not mandatory in every case but recommended, please check the specific source catalog requirements and limitations*):
   - `User.Read.All`
-  - `Directory.Read.All`
 - [A client secret](https://learn.microsoft.com/en-us/entra/identity-platform/howto-create-service-principal-portal#option-3-create-a-new-client-secret) for the Service Principal
-- Added the Service Principal as [Admin](https://learn.microsoft.com/en-us/fabric/fundamentals/give-access-workspaces) on the Fabric Workspace cpontaining the mirror database.
+- Added the Service Principal as [Contributor](https://learn.microsoft.com/en-us/fabric/fundamentals/give-access-workspaces) on the Fabric Workspace containing the mirrored database/catalog.
 
 > :pushpin: **Note:** Every source catalog has additional pre-requisites
 
@@ -56,16 +53,16 @@ $ pip install policy-weaver
 ```
 
 
-## :thread: Databricks Example
+## :thread: Databricks specific setup
 
 ### Azure Databricks Configuration
-1. Create a [Mirror Azure Databricks Catalog](https://learn.microsoft.com/en-us/fabric/mirroring/azure-databricks-tutorial) in a Microsoft Fabric Workspace.
-1. Account Admin Console :arrow_right: User Management :arrow_right: Add your Azure Service Principal. 
-    1. **Role**: "Account admin"
-    1. **Permission**: "Service Principal:Manager"
-1. Workspace Settings :arrow_right: Identity & Access :arrow_right: Manage Service Principals :arrow_right: Add your Azure Service Principal.
-    1. **Permission**: "Service Principal:Manager" permission. 
-    1. **Generate** an OAuth secret for your config.yaml file.
+We assume you have an Entra ID integrated Unity Catalog in your Azure Databricks workspace. To set up Entra ID SCIM for Unity Catalog, please follow the steps in [Configure Entra ID SCIM for Unity Catalog](https://learn.microsoft.com/en-us/azure/databricks/admin/users-groups/scim/aad).
+We also assume you already have a mirrored catalog in Microsoft Fabric. If not, please follow the steps in [Create a mirrored catalog in Microsoft Fabric](https://learn.microsoft.com/en-us/fabric/onelake/mirror-azure-databricks-catalog).
+
+To allow Policy Weaver to read the Unity Catalog metadata and access policies, you need to assign the following roles to your Azure Service Principal:
+1. Go to the Account Admin Console (https://accounts.azuredatabricks.net/) :arrow_right: User Management :arrow_right: Add your Azure Service Principal. 
+1. Click on the Service Principal and go to the Roles tab :arrow_right: Assign the role "Account Admin"
+3. Go to the "Credentials & Secrets" tab :arrow_right: Generate an OAuth Secret. Save the secret, you will need it in your config.yaml file as the `account_api_token`.
 
 ### Update your Configuration file
 Download this [config.yaml](./config.yaml) file template and update it based on your environment.
@@ -73,7 +70,7 @@ Download this [config.yaml](./config.yaml) file template and update it based on 
 For Databricks specifically, you will need to provide:
 
 - **workspace_url**: https://adb-xxxxxxxxxxx.azuredatabricks.net/
-- **account_id**: your databricks account id
+- **account_id**: your databricks account id  (You can find it in the URL when you are in the Account Admin Console: https://accounts.azuredatabricks.net/?account_id=<account_id>)
 - **account_api_token**: Depending on the keyvault setting: the keyvault secret name or your databricks secret
 
 ### Run the Weaver!
@@ -90,7 +87,7 @@ config = DatabricksSourceMap.from_yaml("path_to_your_config.yaml")
 await WeaverAgent.run(config)
 ```
 
-All done! You can now check your Microsoft Fabric Mirrored Azure Databricks catalog new policies.
+All done! You can now check your Microsoft Fabric Mirrored Azure Databricks catalog´s new policies.
 
 ## :raising_hand: Contributing
 
