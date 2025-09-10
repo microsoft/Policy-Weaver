@@ -5,7 +5,7 @@ from policyweaver.plugins.snowflake.model import SnowflakeSourceMap
 from policyweaver.weaver import WeaverAgent
 
 #Load config
-config = SnowflakeSourceMap.from_yaml("config.yaml")
+config = SnowflakeSourceMap.from_yaml("configsnowflake.yaml")
 
 #configure logging for the client (DEBUG for verbose output)
 log_level = logging.DEBUG
