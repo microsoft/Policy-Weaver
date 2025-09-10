@@ -89,10 +89,9 @@ await WeaverAgent.run(config)
 
 All done! You can now check your Microsoft Fabric Mirrored Azure Databricks catalog´s new policies.
 
-<video width="600" controls>
-  <source src="./assets/PolicyWeaverDBX.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
+https://github.com/user-attachments/assets/4bacb45f-c019-4389-a711-974ffb550884
+
+
 
 ## :raising_hand: Contributing
 
