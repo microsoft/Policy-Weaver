@@ -1,5 +1,5 @@
   <p align="center">
-  <img src="./policyweaver.png" alt="Policy Weaver icon" width="200"/>
+  <img src="./assets/policyweaver.png" alt="Policy Weaver icon" width="200"/>
 </p>
 
 </p>
@@ -88,6 +88,10 @@ await WeaverAgent.run(config)
 ```
 
 All done! You can now check your Microsoft Fabric Mirrored Azure Databricks catalog´s new policies.
+
+https://github.com/user-attachments/assets/4bacb45f-c019-4389-a711-974ffb550884
+
+
 
 ## :raising_hand: Contributing
 
