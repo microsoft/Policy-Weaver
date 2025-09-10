@@ -37,7 +37,18 @@ A Python-based accelerator designed to automate the synchronization of security 
 
 > :pushpin: **Note:** Row-level and column-level security extraction will be implemented in the next version, once these features become available in OneLake Security.
 
-## :clipboard: Prerequisites
+
+## :hammer_and_wrench: Installation
+Make sure your Python version is greater or equal than 3.11. Then, install the library:
+```bash
+$ pip install policy-weaver
+```
+
+# :rocket: Getting Started
+
+Follow the General Prerequisites and Installation steps below [here](#clipboard-general-prerequisites). Then, depending on your source catalog, follow the specific setup instructions for either [Databricks](#thread-databricks-specific-setup) or [Snowflake](#thread-snowflake-specific-setup).
+
+## :clipboard: General Prerequisites
 Before installing and running this solution, ensure you have:
 - **Azure [Service Principal](https://learn.microsoft.com/en-us/entra/identity-platform/howto-create-service-principal-portal)** with the following [Microsoft Graph API permissions](https://learn.microsoft.com/en-us/graph/permissions-reference) (*This is not mandatory in every case but recommended, please check the specific source catalog requirements and limitations*):
   - `User.Read.All`
@@ -46,11 +57,6 @@ Before installing and running this solution, ensure you have:
 
 > :pushpin: **Note:** Every source catalog has additional pre-requisites
 
-## :hammer_and_wrench: Installation
-Make sure your Python version is greater or equal than 3.11. Then, install the library:
-```bash
-$ pip install policy-weaver
-```
 
 
 ## :thread: Databricks specific setup
