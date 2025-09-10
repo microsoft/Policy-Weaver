@@ -96,7 +96,11 @@ https://github.com/user-attachments/assets/4bacb45f-c019-4389-a711-974ffb550884
 
 ### Snowflake Configuration
 We assume you have an Entra ID integrated Snowflake workspace, i.e. users in Snowflake have the same login e-mail as in Entra ID and Fabric, ideally imported through a SCIM process.
-We also assume you already have a mirrored snowflake database in Microsoft Fabric. If not, please follow the steps in [Create a mirrored Snowflake Datawarehouse in Microsoft Fabric](https://learn.microsoft.com/en-us/fabric/mirroring/snowflake-tutorial).
+We also assume you already have a mirrored snowflake database in Microsoft Fabric. If not, please follow the steps in [Create a mirrored Snowflake Datawarehouse in Microsoft Fabric](https://learn.microsoft.com/en-us/fabric/mirroring/snowflake-tutorial). You need to enable One Lake Security by opening the Item in the Fabric UI and click on "Manage OneLake data access".
+
+
+<img width="512" height="282" alt="image" src="https://github.com/user-attachments/assets/2bc19234-7fbf-4c42-945d-6e215286e97a" />
+
 
 For the Snowflake setup the Service Principal is required to have User.Read.All permissions for the Graph API to look up the Entra ID object id for each user.
 
@@ -141,6 +145,9 @@ await WeaverAgent.run(config)
 ```
 
 All done! You can now check your Microsoft Fabric Mirrored Snowflake Warehouse´s new One Lake Security policies.
+
+
+https://github.com/user-attachments/assets/4de93aa3-e6c2-4c5b-b220-b30f6bfafd2f
 
 
 
