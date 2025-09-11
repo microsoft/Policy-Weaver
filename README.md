@@ -63,6 +63,9 @@ Before installing and running this solution, ensure you have:
 
 ### Azure Databricks Configuration
 We assume you have an Entra ID integrated Unity Catalog in your Azure Databricks workspace. To set up Entra ID SCIM for Unity Catalog, please follow the steps in [Configure Entra ID SCIM for Unity Catalog](https://learn.microsoft.com/en-us/azure/databricks/admin/users-groups/scim/aad).
+
+:clipboard: Note that we only sync groups, users and service principals on account level, i.e. specifically no legacy "local" workspace groups. If you still use local workspace groups, please migrate them: [Link to Documentation](https://learn.microsoft.com/en-us/azure/databricks/admin/users-groups/workspace-local-groups)
+
 We also assume you already have a mirrored catalog in Microsoft Fabric. If not, please follow the steps in [Create a mirrored catalog in Microsoft Fabric](https://learn.microsoft.com/en-us/fabric/onelake/mirror-azure-databricks-catalog). You need to enable One Lake Security by opening the Item in the Fabric UI and click on "Manage OneLake data access".
 
 
