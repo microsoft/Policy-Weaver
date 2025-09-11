@@ -134,11 +134,12 @@ Download this [config.yaml](./config.yaml) file template and update it based on 
 
 For Snowflake specifically, you will need to provide:
 
-- **account_name**: your snowflake account name (e.g. KWADKA-AK8207)
-- **user_name**: the snowflake user name you created for Policy Weaver (e.g. POLICYWEAVER)
+- **account_name**: your snowflake account name (e.g. KWADKA-AK8207) **OR** the secret name in the keyvault if you use keyvault
+- **user_name**: the snowflake user name you created for Policy Weaver (e.g. POLICYWEAVER)  **OR** the secret name in the keyvault if you use keyvault
 - **private_key_file**: the path to your private key file if you are using key-pair authentication (e.g. ./builtin/rsa_policyweaver_key.p8)
-- **password**: the password of the snowflake user if you are using password authentication **OR** the passphrase of your private key if you are using key-pair authentication
+- **password**: the password of the snowflake user if you are using password authentication **OR** the passphrase of your private key if you are using key-pair authentication **OR** the secret name in the keyvault if you use keyvault
 - **warehouse**: the snowflake warehouse you want to use to run the queries (e.g. COMPUTE_WH)
+
 
 ### Run the Weaver!
 This is all the code you need. Just make sure Policy Weaver can access your YAML configuration file.

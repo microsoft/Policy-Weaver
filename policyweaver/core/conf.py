@@ -1,4 +1,5 @@
 from logging import config
+import logging
 import os
 from uuid import uuid4
 import requests
@@ -47,9 +48,13 @@ class Configuration:
         Returns:
             dict: A dictionary containing Key Vault credentials if available.
         """
+        logger = logging.getLogger("POLICY_WEAVER")
+
         if not(config.keyvault and config.keyvault.use_key_vault):
+            logger.error("Key Vault is not enabled in the configuration.")
             raise ValueError("Key Vault is not enabled in the configuration.")
         if not(config.keyvault.name and config.keyvault.authentication_method):
+            logger.error("Key Vault name and authentication method must be provided.")
             raise ValueError("Key Vault name and authentication method must be provided.")
         
         key_vault_name = config.keyvault.name
@@ -59,7 +64,7 @@ class Configuration:
             credential = AzureCLIClient()
             credential.initialize()
             
-            def get_secret(secret_name):
+            def get_secret(secret_name, config_name):
                 """
                 Retrieve a secret from Azure Key Vault using the Azure CLI credentials.
                 Args:
@@ -76,10 +81,11 @@ class Configuration:
                 if response.status_code == 200:
                     return response.json()["value"]
                 else:
-                    raise Exception(f"Failed to retrieve secret {secret_name}: {response.status_code} - {response.text}")
+                    logger.warning(f"Failed to retrieve secret '{config_name}' from Key Vault. Using the configured value as fallback.")
+                    return secret_name
 
         elif config.keyvault.authentication_method == "fabric_notebook":
-            def get_secret(secret_name):
+            def get_secret(secret_name, config_name):
                 """
                 Retrieve a secret from Azure Key Vault using the Fabric Notebook credentials.
                 Args:
@@ -88,14 +94,22 @@ class Configuration:
                     str: The value of the secret.
                 """
                 # Assuming notebookutils is available in the environment
-                return notebookutils.credentials.getSecret(f'https://{key_vault_name}.vault.azure.net/', secret_name)
+                try:
+                    return notebookutils.credentials.getSecret(f'https://{key_vault_name}.vault.azure.net/', secret_name)
+                except Exception as e:
+                    logger.warning(f"Failed to retrieve secret '{config_name}' from Key Vault. Using the configured value as fallback.")
+                    return secret_name
             
         else:
             raise ValueError("Unsupported Key Vault authentication method. Use 'azure_cli' or 'fabric_notebook'.")
 
-        config.service_principal.tenant_id = get_secret(config.service_principal.tenant_id)
-        config.service_principal.client_id = get_secret(config.service_principal.client_id)
-        config.service_principal.client_secret = get_secret(config.service_principal.client_secret)
+        config.service_principal.tenant_id = get_secret(config.service_principal.tenant_id, config_name="tenant_id")
+        config.service_principal.client_id = get_secret(config.service_principal.client_id, config_name="client_id")
+        config.service_principal.client_secret = get_secret(config.service_principal.client_secret, config_name="client_secret")
         if hasattr(config, 'databricks') and config.databricks is not None:
-            config.databricks.account_api_token = get_secret(config.databricks.account_api_token)
+            config.databricks.account_api_token = get_secret(config.databricks.account_api_token, config_name="databricks.account_api_token")
+        if hasattr(config, 'snowflake') and config.snowflake is not None:
+            config.snowflake.account_name = get_secret(config.snowflake.account_name, config_name="snowflake account_name")
+            config.snowflake.user_name = get_secret(config.snowflake.user_name, config_name="snowflake user_name")
+            config.snowflake.password = get_secret(config.snowflake.password, config_name="snowflake password")
 
