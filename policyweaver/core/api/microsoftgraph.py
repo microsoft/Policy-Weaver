@@ -59,7 +59,7 @@ class MicrosoftGraphClient:
             str: The user ID if found, None otherwise.
         """
         try:
-            u = await self.graph_client.users.by_user_id(email).get()
+            u = await self.graph_client.users.by_user_id(email.lower()).get()
 
             if u: 
                 self.logger.debug(f"MSFT GRAPH CLIENT {email} - {u.id}")
