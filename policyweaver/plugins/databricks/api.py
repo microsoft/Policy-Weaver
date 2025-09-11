@@ -204,34 +204,10 @@ class DatabricksAPIClient:
             self.logger.debug(f"DBX Policy Export for {api_catalog.name}...")
 
             self.__workspace = Workspace(
-                users=self.__get_workspace_users__(),
-                groups=self.__get_workspace_groups__(),
-                service_principals=self.__get_workspace_service_principals__()
+                users=self.__account.users,
+                groups=self.__account.groups,
+                service_principals=self.__account.service_principals
             )
-
-            for u in self.__account.users:
-                if u.email not in [w.email for w in self.__workspace.users]:
-                    self.logger.debug(f"DBX WORKSPACE User {u.email} not found in workspace, adding...")
-                    self.__workspace.users.append(u)
-                else:
-                    x = self.__workspace.lookup_user_by_email(u.email)
-
-                    if not x.external_id:
-                        self.logger.debug(f"DBX WORKSPACE User {u.email} found in workspace, but external_id is missing, updating...")
-                        x.external_id = u.external_id
-            
-            for s in self.__account.service_principals:
-                if s.application_id not in [w.application_id for w in self.__workspace.service_principals]:
-                    self.logger.debug(f"DBX WORKSPACE Service Principal {s.application_id} not found in workspace, adding...")
-                    self.__workspace.service_principals.append(s)
-                else:
-                    x = self.__workspace.lookup_service_principal_by_id(s.application_id)
-
-                    if not x.external_id:
-                        self.logger.debug(f"DBX WORKSPACE Service Principal {s.application_id} found in workspace, but external_id is missing, updating...")
-                        x.external_id = s.external_id
-
-            self.__workspace.groups.extend([g for g in self.__account.groups if g.name not in [w.name for w in self.__workspace.groups]])
 
             self.__workspace.catalog = Catalog(
                     name=api_catalog.name,
