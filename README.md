@@ -37,20 +37,26 @@ A Python-based accelerator designed to automate the synchronization of security 
 
 > :pushpin: **Note:** Row-level and column-level security extraction will be implemented in the next version, once these features become available in OneLake Security.
 
-## :clipboard: Prerequisites
-Before installing and running this solution, ensure you have:
-- **Azure [Service Principal](https://learn.microsoft.com/en-us/entra/identity-platform/howto-create-service-principal-portal)** with the following [Microsoft Graph API permissions](https://learn.microsoft.com/en-us/graph/permissions-reference) (*This is not mandatory in every case but recommended, please check the specific source catalog requirements and limitations*):
-  - `User.Read.All`
-- [A client secret](https://learn.microsoft.com/en-us/entra/identity-platform/howto-create-service-principal-portal#option-3-create-a-new-client-secret) for the Service Principal
-- Added the Service Principal as [Contributor](https://learn.microsoft.com/en-us/fabric/fundamentals/give-access-workspaces) on the Fabric Workspace containing the mirrored database/catalog.
-
-> :pushpin: **Note:** Every source catalog has additional pre-requisites
 
 ## :hammer_and_wrench: Installation
 Make sure your Python version is greater or equal than 3.11. Then, install the library:
 ```bash
 $ pip install policy-weaver
 ```
+
+# :rocket: Getting Started
+
+Follow the General Prerequisites and Installation steps below [here](#clipboard-general-prerequisites). Then, depending on your source catalog, follow the specific setup instructions for either [Databricks](#thread-databricks-specific-setup) or [Snowflake](#thread-snowflake-specific-setup).
+
+## :clipboard: General Prerequisites
+Before installing and running this solution, ensure you have:
+- **Azure [Service Principal](https://learn.microsoft.com/en-us/entra/identity-platform/howto-create-service-principal-portal)** with the following [Microsoft Graph API permissions](https://learn.microsoft.com/en-us/graph/permissions-reference) (*This is not mandatory in every case but recommended, please check the specific source catalog requirements and limitations*):
+  - `User.Read.All` as application permissions
+- [A client secret](https://learn.microsoft.com/en-us/entra/identity-platform/howto-create-service-principal-portal#option-3-create-a-new-client-secret) for the Service Principal
+- Added the Service Principal as [Contributor](https://learn.microsoft.com/en-us/fabric/fundamentals/give-access-workspaces) on the Fabric Workspace containing the mirrored database/catalog.
+
+> :pushpin: **Note:** Every source catalog has additional pre-requisites
+
 
 
 ## :thread: Databricks specific setup
@@ -91,9 +97,67 @@ config = DatabricksSourceMap.from_yaml("path_to_your_config.yaml")
 await WeaverAgent.run(config)
 ```
 
-All done! You can now check your Microsoft Fabric Mirrored Azure Databricks catalog´s new policies.
+All done! You can now check your Microsoft Fabric Mirrored Azure Databricks catalog´s new One Lake Security policies.
 
 https://github.com/user-attachments/assets/4bacb45f-c019-4389-a711-974ffb550884
+
+
+## :thread: Snowflake specific setup
+
+### Snowflake Configuration
+We assume you have an Entra ID integrated Snowflake workspace, i.e. users in Snowflake have the same login e-mail as in Entra ID and Fabric, ideally imported through a SCIM process.
+We also assume you already have a mirrored snowflake database in Microsoft Fabric. If not, please follow the steps in [Create a mirrored Snowflake Datawarehouse in Microsoft Fabric](https://learn.microsoft.com/en-us/fabric/mirroring/snowflake-tutorial). You need to enable One Lake Security by opening the Item in the Fabric UI and click on "Manage OneLake data access".
+
+
+<img width="512" height="282" alt="image" src="https://github.com/user-attachments/assets/2bc19234-7fbf-4c42-945d-6e215286e97a" />
+
+
+For the Snowflake setup the Service Principal is required to have User.Read.All permissions for the Graph API to look up the Entra ID object id for each user.
+
+To allow Policy Weaver to read the Snowflake metadata and access policies, you need to create a Snowflake user and role and assign the following privileges. Follow the following steps:
+1. Create a new technical user in Snowflake, e.g. with the name POLICYWEAVER. (Optionally, but recommended: setup key-pair authentication for this user with an encrypted key as described [here](https://docs.snowflake.com/en/user-guide/key-pair-auth))
+1. Create a new role e.g. ACCOUNT_USAGE and assign the following privileges to this role:
+   - IMPORTED PRIVILEGES on the SNOWFLAKE database
+   - USAGE on the WAREHOUSE you want to use to run the queries (e.g. COMPUTE_WH)
+   - Assign the ACCOUNT_USAGE role to the POLICYWEAVER user
+
+You can use the following SQL statements. Replace the role, user and warehouse names as required.
+```sql
+CREATE ROLE "ACCOUNT_USAGE";
+GRANT IMPORTED PRIVILEGES ON DATABASE SNOWFLAKE TO ROLE ACCOUNT_USAGE;
+GRANT USAGE ON WAREHOUSE COMPUTE_WH TO ROLE ACCOUNT_USAGE;
+GRANT ROLE ACCOUNT_USAGE to USER "POLICYWEAVER";
+```
+
+### Update your Configuration file
+Download this [config.yaml](./config.yaml) file template and update it based on your environment.
+
+For Snowflake specifically, you will need to provide:
+
+- **account_name**: your snowflake account name (e.g. KWADKA-AK8207)
+- **user_name**: the snowflake user name you created for Policy Weaver (e.g. POLICYWEAVER)
+- **private_key_file**: the path to your private key file if you are using key-pair authentication (e.g. ./builtin/rsa_policyweaver_key.p8)
+- **password**: the password of the snowflake user if you are using password authentication **OR** the passphrase of your private key if you are using key-pair authentication
+- **warehouse**: the snowflake warehouse you want to use to run the queries (e.g. COMPUTE_WH)
+
+### Run the Weaver!
+This is all the code you need. Just make sure Policy Weaver can access your YAML configuration file.
+```python
+#import the PolicyWeaver library
+from policyweaver.weaver import WeaverAgent
+from policyweaver.plugins.snowflake.model import SnowflakeSourceMap
+
+#Load config
+config = SnowflakeSourceMap.from_yaml("path_to_your_config.yaml")
+
+#run the PolicyWeaver
+await WeaverAgent.run(config)
+```
+
+All done! You can now check your Microsoft Fabric Mirrored Snowflake Warehouse´s new One Lake Security policies.
+
+
+https://github.com/user-attachments/assets/4de93aa3-e6c2-4c5b-b220-b30f6bfafd2f
 
 
 
