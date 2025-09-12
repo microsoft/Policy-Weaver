@@ -80,6 +80,8 @@ To allow Policy Weaver to read the Unity Catalog metadata and access policies, y
 ### Update your Configuration file
 Download this [config.yaml](./config.yaml) file template and update it based on your environment.
 
+In general, you should fill the config file as described here: [Config File values](#books-config-file-values).
+
 For Databricks specifically, you will need to provide:
 
 - **workspace_url**: https://adb-xxxxxxxxxxx.azuredatabricks.net/
@@ -135,6 +137,8 @@ GRANT ROLE ACCOUNT_USAGE to USER "POLICYWEAVER";
 ### Update your Configuration file
 Download this [config.yaml](./config.yaml) file template and update it based on your environment.
 
+In general, you should fill the config file as described here: [Config File values](#books-config-file-values).
+
 For Snowflake specifically, you will need to provide:
 
 - **account_name**: your snowflake account name (e.g. KWADKA-AK8207) **OR** the secret name in the keyvault if you use keyvault
@@ -164,8 +168,108 @@ All done! You can now check your Microsoft Fabric Mirrored Snowflake Warehouse´
 https://github.com/user-attachments/assets/4de93aa3-e6c2-4c5b-b220-b30f6bfafd2f
 
 
+## :books: Config File values
 
-## :raising_hand: Contributing
+Here ´s how the config.yaml should be adjusted to your environment:
+
+- keyvault:
+  - use_key_vault: true/false (true if you want to use keyvault to store secrets, false if you want to store secrets directly in the config file)
+  - name: your keyvault name (only required if use_key_vault is true)
+  - authentication_method: azure_cli / fabric_notebook (only required if use_key_vault is true) :right_arrow: use fabric_notebook if you run it in a fabric notebook, otherwise use azure_cli and login with `az login` before running the weaver
+
+- fabric:
+    - mirror_id: the item id of the mirrored catalog/database/warehouse (you can find it in the URL when you open the workload item in the Fabric UI)
+    - mirror_name: the name of the item in Fabric
+    - workspace_id: your fabric workspace id (you can find it in the URL when you are in the Fabric workspace)
+    - tenant_id: your fabric tenant id (you can find it in the URL "help" -> "about Fabric" section of the Fabric UI)
+    - fabric_role_suffix: suffix for the fabric roles created by Policy Weaver (default: PW)
+    - fabric_role_prefix: prefix for the fabric roles created by Policy Weaver (default: PW)
+    - delete_default_reader_role: true/false (if true, the DefaultReader role created by Fabric will be deleted, if false it will be kept, default: true)
+    - policy_mapping: table_based / role_based (table_based: create one role per table, role_based: create one role per role/group, default: table_based)
+
+- service_principal:
+  - client_id: the client id of the service principal mentioned under general prerequisites **OR** the corresponding secret name in the keyvault if you use keyvault
+  - client_secret: the client secret of the service principal mentioned under general prerequisites **OR** the corresponding secret name in the keyvault if you use keyvault
+  - tenant_id: the tenant id of the service principal mentioned under general prerequisites **OR** the corresponding secret name in the keyvault if you use keyvault
+
+- source: name of the unity catalog or snowflake database
+
+- type: either 'UNITY_CATALOG' for databricks or 'SNOWFLAKE' for snowflake
+
+Here is an example config.yaml **NOT** using keyvault:
+
+```yaml
+keyvault:
+  use_key_vault: false
+  name: notapplicable
+  authentication_method: notapplicable
+fabric:
+  mirror_id: 845464654646adfasdf45567
+  mirror_name: salescatalog
+  workspace_id: 9d556498489465asdf7c
+  tenant_id: 3494545asdfs7e2885
+  fabric_role_suffix: PW
+  fabric_role_prefix: PW
+  delete_default_reader_role: true
+  policy_mapping: role_based
+service_principal:
+  client_id: 89ac5a4sd894as9df4sad89f
+  client_secret: 1234556dsad4848129
+  tenant_id: 3494545asdfs7e2885
+source:
+  name: dbxsalescatalog
+type: UNITY_CATALOG
+databricks:
+  workspace_url: https://adb-6a5s4df9sd4fasdf.0.azuredatabricks.net/
+  account_id: 085a54s65a4sfa6565asdff
+  account_api_token: 74adsf84ad8f4a8sd4f8asdf
+snowflake:
+  account_name: KAIJOIWA-DUAK8207
+  user_name: POLICYWEAVER
+  private_key_file: rsa_key.p8
+  password: ODFJo12io1212
+  warehouse: COMPUTE_WH
+```
+
+Here is an example config.yaml **using** keyvault. 
+
+:clipboard: Note that in this case, the user running the weaver needs to have access to the keyvault and the secrets.
+
+```yaml
+keyvault:
+  use_key_vault: true
+  name: policyweaver20250912
+  authentication_method: fabric_notebook
+fabric:
+  mirror_id: 845464654646adfasdf45567
+  mirror_name: SFDEMODATA
+  workspace_id: 9d556498489465asdf7c
+  tenant_id: 3494545asdfs7e2885
+  fabric_role_suffix: PW
+  fabric_role_prefix: PW
+  delete_default_reader_role: true
+  policy_mapping: role_based
+service_principal:
+  client_id: kv-service-principal-client-id
+  client_secret: kv-service-principal-client-secret
+  tenant_id: kv-service-principal-tenant-id
+source:
+  name: SFDEMODATA
+type: SNOWFLAKE
+databricks:
+  workspace_url: https://adb-1441751476278720.0.azuredatabricks.net/
+  account_id: 085f281e-a7ef-4faa-9063-325e1db8e45f
+  account_api_token: kv-databricks-account-api-token
+snowflake:
+  account_name: kv-sfaccountname
+  user_name: kv-sfusername
+  private_key_file: rsa_key.p8
+  password: kv-sfpassword
+  warehouse: COMPUTE_WH
+```
+
+
+:raising_hand: Contributing
 
 This project welcomes contributions and suggestions.  Most contributions require you to agree to a
 Contributor License Agreement (CLA) declaring that you have the right to, and actually do, grant us
