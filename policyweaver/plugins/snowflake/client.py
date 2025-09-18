@@ -264,7 +264,7 @@ class SnowflakePolicyWeaver(PolicyWeaverCore):
         return policy_export
 
     def map_policy(self, policy_mapping = 'role_based'):
-        self.map = self.api_client.__get_database_map__()
+        self.map = self.api_client.__get_database_map__(self.config.source)
         
         # Filter out valid grants
         self.valid_grants = self.__compute_valid_grants__()

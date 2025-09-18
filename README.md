@@ -220,9 +220,9 @@ service_principal:
   tenant_id: 3494545asdfs7e2885
 source:
   name: dbxsalescatalog
-  schemas: <---- optional and only applicable for DBX currently, if not provided all schemas will be scanned
+  schemas: <---- optional, if not provided all schemas will be scanned
   - name: analystschema
-    tables: <---- optional and only applicable for DBX currently, if not provided all tables will be scanned
+    tables: <---- optional, if not provided all tables will be scanned
     - subsubanalysttable
 type: UNITY_CATALOG
 databricks:
@@ -261,9 +261,9 @@ service_principal:
   tenant_id: kv-service-principal-tenant-id
 source:
   name: SFDEMODATA
-  schemas: <---- optional and only applicable for DBX currently, if not provided all schemas will be scanned
+  schemas: <---- optional, if not provided all schemas will be scanned
   - name: analystschema
-    tables: <---- optional and only applicable for DBX currently, if not provided all tables will be scanned
+    tables: <---- optional, if not provided all tables will be scanned
     - subsubanalysttable
 type: SNOWFLAKE
 databricks:
