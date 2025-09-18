@@ -1,6 +1,7 @@
 import logging
 import json
 import os
+import re
 from pydantic.json import pydantic_encoder
 
 from databricks.sdk import (
@@ -15,11 +16,12 @@ from policyweaver.models.config import (
     SourceSchema, Source
 )
 from policyweaver.plugins.databricks.model import (
-    DatabricksUser, DatabricksServicePrincipal, DatabricksGroup,
+    ColumnMask, DatabricksUser, DatabricksServicePrincipal, DatabricksGroup,
     DatabricksGroupMember, Account, Workspace, Catalog, Schema, Table,
     Function, FunctionMap, Privilege
 )
 from policyweaver.core.enum import (
+    ColumnMaskType,
     IamType
 )
 
@@ -399,6 +401,60 @@ class DatabricksAPIClient:
         self.logger.debug(f"DBX WORKSPACE Schemas for {catalog}: {json.dumps(schemas, default=pydantic_encoder, indent=4)}")
 
         return schemas
+    
+    @staticmethod
+    def __extract_group_from_mask_function__(sql_definition: str) -> dict:
+        """
+        Extracts the group name and mask pattern from a column mask function definition.
+        
+        Args:
+            sql_definition (str): The SQL definition containing is_account_group_member function
+        Returns:
+            dict: Dictionary containing 'group_name' and 'mask_pattern', or None values if not found
+        """
+        result = {
+            'group_name': None,
+            'mask_pattern': None
+        }
+        
+        # Pattern to match is_account_group_member('group_name') or is_account_group_member("group_name")
+        group_pattern = r"is_account_group_member\s*\(\s*['\"]([^'\"]+)['\"]"
+        group_match = re.search(group_pattern, sql_definition, re.IGNORECASE)
+        
+        if group_match:
+            result['group_name'] = group_match.group(1)
+        else:
+            return None
+        
+        # Pattern to match ELSE 'mask_pattern' - looks for quoted strings in ELSE clause
+        mask_pattern = r"ELSE\s+['\"]([^'\"]*\*[^'\"]*)['\"]"
+        mask_match = re.search(mask_pattern, sql_definition, re.IGNORECASE)
+        
+        if mask_match:
+            result['mask_pattern'] = mask_match.group(1)
+        else:
+            return None
+        
+        return result
+
+    def __get_column_mask__(self, column_name: str, func_map: FunctionMap) -> ColumnMask:
+        """Retrieves the column mask for a given function map.
+        Args:
+            column_name (str): The name of the column to retrieve the mask for.
+            func_map (FunctionMap): The FunctionMap object containing the name and columns of the column mask function.
+        Returns:
+            ColumnMask: A ColumnMask object representing the column mask function.
+        """
+        func = self.workspace_client.functions.get(func_map.name)
+        extraction = self.__extract_group_from_mask_function__(func.routine_definition)
+        col_mask = ColumnMask(name=func_map.name,
+                              routine_definition=func.routine_definition,
+                              column_name=column_name)
+        if extraction:
+            col_mask.group_name = extraction['group_name']
+            col_mask.mask_pattern = extraction['mask_pattern']
+            col_mask.mask_type = ColumnMaskType.GROUP_MEMBERSHIP
+        return col_mask
 
     def __get_schema_tables__(self, catalog: str, schema: str, table_filters: List[str]) -> List[Table]:
         """
@@ -427,9 +483,9 @@ class DatabricksAPIClient:
                     columns=t.row_filter.input_column_names,
                 ),
                 column_masks=[
-                    FunctionMap(
+                    self.__get_column_mask__(c.name, FunctionMap(
                         name=c.mask.function_name, columns=c.mask.using_column_names
-                    )
+                    ))
                     for c in t.columns
                     if c.mask
                 ],

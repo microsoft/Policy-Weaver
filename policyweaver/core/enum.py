@@ -30,6 +30,16 @@ class IamType(str, CommonBaseEnum):
     MANAGED_IDENTITY = "MANAGED_IDENTITY"
     SERVICE_PRINCIPAL = "SERVICE_PRINCIPAL"
 
+class ColumnMaskType(str, CommonBaseEnum):
+    """
+    Enum representing different types of column masks.
+    This enum is used to categorize column masks.
+    Attributes:
+        GROUP_MEMBERSHIP (str): Represents a column mask based on group membership.
+    """    
+    GROUP_MEMBERSHIP = "GROUP_MEMBERSHIP"
+
+
 class PermissionType(str, CommonBaseEnum):
     """
     Enum representing different types of permissions.

@@ -4,7 +4,7 @@ from typing import Optional, List, Dict
 from policyweaver.core.utility import Utils
 from policyweaver.models.common import CommonBaseModel
 from policyweaver.models.config import SourceMap
-from policyweaver.core.enum import IamType
+from policyweaver.core.enum import ColumnMaskType, IamType
 
 class DependencyMap(CommonBaseModel):
     """
@@ -137,6 +137,23 @@ class FunctionMap(BaseObject):
     """
     columns: Optional[List[str]] = Field(alias="column", default=None)
 
+class ColumnMask(BaseObject):
+    """
+    Represents a column mask that can be applied to data in the Databricks workspace.
+    This class extends BaseObject to include the routine definition of the mask.
+    Attributes:
+        name: (Optional[str]): The name of the column mask .
+        routine_definition (Optional[str]): The SQL definition of the column mask routine.
+        column_name (Optional[str]): The name of the column to which the mask applies.
+    """
+
+    name: Optional[str] = Field(alias="name", default=None)
+    routine_definition: Optional[str] = Field(alias="routine_definition", default=None)
+    column_name: Optional[str] = Field(alias="column_name", default=None)
+    mask_type: Optional[ColumnMaskType] = Field(alias="mask_type", default=None)
+    group_name: Optional[str] = Field(alias="group_name", default=None)
+    mask_pattern: Optional[str] = Field(alias="mask_pattern", default=None)
+
 class Function(PrivilegedObject):
     """
     Represents a function that can be applied to data in the Databricks workspace.
@@ -160,7 +177,7 @@ class Table(PrivilegedObject):
             to the rows of the table.
     This allows the table to define its structure and how functions can be applied to its data.
     """
-    column_masks: Optional[List[FunctionMap]] = Field(
+    column_masks: Optional[List[ColumnMask]] = Field(
         alias="column_masks", default=None
     )
     row_filter: Optional[FunctionMap] = Field(alias="row_filter", default=None)
