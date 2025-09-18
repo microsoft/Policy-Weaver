@@ -198,7 +198,8 @@ class SnowflakeAPIClient:
                 else:
                     filtered_table_grants_per_schema = [grant for grant in table_grants if grant["TABLE_SCHEMA"] == s.name]
                 filtered_table_grants.extend(filtered_table_grants_per_schema)
-
+            
+            table_grants = filtered_table_grants
 
         grants_raw = database_grants + schema_grants + table_grants
 
