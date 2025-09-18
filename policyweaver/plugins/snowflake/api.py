@@ -1,6 +1,5 @@
 import logging
 import pandas as pd
-import json
 import os
 from pydantic.json import pydantic_encoder
 
@@ -9,12 +8,7 @@ import snowflake.connector
 from typing import List, Tuple
 
 from policyweaver.models.config import (
-    SourceSchema, Source
-)
-from policyweaver.plugins.databricks.model import (
-    DatabricksUser, DatabricksServicePrincipal, DatabricksGroup,
-    DatabricksGroupMember, Account, Workspace, Catalog, Schema, Table,
-    Function, FunctionMap, Privilege,
+     Source
 )
 
 from policyweaver.plugins.snowflake.model import (
@@ -26,11 +20,7 @@ from policyweaver.plugins.snowflake.model import (
     SnowflakeDatabaseMap,
     SnowflakeUserOrRole
 )
-from policyweaver.core.enum import (
-    IamType
-)
 
-from policyweaver.core.auth import ServicePrincipal
 
 class SnowflakeAPIClient:
     """
@@ -320,12 +310,3 @@ class SnowflakeAPIClient:
             id=role["ROLE_ID"],
             name=role["NAME"]
         ) for role in roles]
-
-    def get_grants(self, database: str) -> pd.DataFrame:
-        """
-        Retrieves all grants from the Snowflake account.
-        This method fetches grants for users, roles, and privileges across databases, schemas, and tables.
-        Returns:
-            pd.DataFrame: A DataFrame containing grant information.
-        """
-        raise NotImplementedError("Method not implemented yet.")
