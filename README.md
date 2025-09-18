@@ -192,7 +192,9 @@ Here ´s how the config.yaml should be adjusted to your environment:
   - client_secret: the client secret of the service principal mentioned under general prerequisites **OR** the corresponding secret name in the keyvault if you use keyvault
   - tenant_id: the tenant id of the service principal mentioned under general prerequisites **OR** the corresponding secret name in the keyvault if you use keyvault
 
-- source: name of the unity catalog or snowflake database
+- source:
+  - name of the unity catalog or snowflake database
+  - schemas: list of schemas to include. If not set, all schemas are included. For each schema you can give a list of tables which should be included. If not set all tables are included (see examples below)
 
 - type: either 'UNITY_CATALOG' for databricks or 'SNOWFLAKE' for snowflake
 
@@ -218,6 +220,10 @@ service_principal:
   tenant_id: 3494545asdfs7e2885
 source:
   name: dbxsalescatalog
+  schemas: <---- optional and only applicable for DBX currently, if not provided all schemas will be scanned
+  - name: analystschema
+    tables: <---- optional and only applicable for DBX currently, if not provided all tables will be scanned
+    - subsubanalysttable
 type: UNITY_CATALOG
 databricks:
   workspace_url: https://adb-6a5s4df9sd4fasdf.0.azuredatabricks.net/
@@ -255,6 +261,10 @@ service_principal:
   tenant_id: kv-service-principal-tenant-id
 source:
   name: SFDEMODATA
+  schemas: <---- optional and only applicable for DBX currently, if not provided all schemas will be scanned
+  - name: analystschema
+    tables: <---- optional and only applicable for DBX currently, if not provided all tables will be scanned
+    - subsubanalysttable
 type: SNOWFLAKE
 databricks:
   workspace_url: https://adb-1441751476278720.0.azuredatabricks.net/
