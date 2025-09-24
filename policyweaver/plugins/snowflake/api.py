@@ -172,14 +172,15 @@ class SnowflakeAPIClient:
 
         # get column masks
 
-    def __get_grants__(self, source: Source) -> List[SnowflakeGrant]:
+        self.__get_column_masks__(source.name)
+
 
         return SnowflakeDatabaseMap(users=self.users, roles=self.roles,
                                     grants=self.grants,
                                     masking_policies=self.masking_policies,
                                     tables_with_masks=self.tables_with_masks)
 
-    def __get_grants__(self, database: str) -> List[SnowflakeGrant]:
+    def __get_grants__(self, source: Source) -> List[SnowflakeGrant]:
 
         query = f"""select   "PRIVILEGE", "GRANTED_ON", "TABLE_CATALOG", "TABLE_SCHEMA", "NAME", "GRANTEE_NAME"
                     from     SNOWFLAKE.ACCOUNT_USAGE.GRANTS_TO_ROLES
