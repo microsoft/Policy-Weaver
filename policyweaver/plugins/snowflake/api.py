@@ -134,7 +134,6 @@ class SnowflakeAPIClient:
                 results = cur.fetchall()
         return [dict(zip(columns, row)) for row in results]
 
-
     def __get_database_map__(self, source: Source) -> SnowflakeDatabaseMap:
         """
         Retrieves the database map from the Snowflake account.
@@ -169,11 +168,11 @@ class SnowflakeAPIClient:
 
         # get grants to roles and users
 
-        self.grants = self.__get_grants__(database=source.name)
+        self.grants = self.__get_grants__(source)
 
         # get column masks
 
-        self.__get_column_masks__(database=source.name)
+    def __get_grants__(self, source: Source) -> List[SnowflakeGrant]:
 
         return SnowflakeDatabaseMap(users=self.users, roles=self.roles,
                                     grants=self.grants,
@@ -186,9 +185,33 @@ class SnowflakeAPIClient:
                     from     SNOWFLAKE.ACCOUNT_USAGE.GRANTS_TO_ROLES
                     where    DELETED_ON is null and
                             GRANTED_ON in ('TABLE','SCHEMA','DATABASE') and
-                            TABLE_CATALOG = '{database}'"""
+                            TABLE_CATALOG = '{source.name}'"""
         
         grants_raw = self.__run_query__(query, columns=["PRIVILEGE", "GRANTED_ON", "TABLE_CATALOG", "TABLE_SCHEMA", "NAME", "GRANTEE_NAME"]) 
+
+        database_grants = [grant for grant in grants_raw if grant["GRANTED_ON"] == "DATABASE"]
+        schema_grants = [grant for grant in grants_raw if grant["GRANTED_ON"] == "SCHEMA"]
+        table_grants = [grant for grant in grants_raw if grant["GRANTED_ON"] == "TABLE"]
+
+        if source.schemas:
+            # filter grants based on provided schemas and tables
+            schema_names = [s.name for s in source.schemas]
+            filtered_schema_grants = [grant for grant in schema_grants if grant["TABLE_SCHEMA"] in schema_names]
+            filtered_table_grants = [grant for grant in table_grants if grant["TABLE_SCHEMA"] in schema_names]
+            schema_grants = filtered_schema_grants
+            table_grants = filtered_table_grants
+
+            filtered_table_grants = []
+            for s in source.schemas:
+                if s.tables:
+                    filtered_table_grants_per_schema = [grant for grant in table_grants if grant["TABLE_SCHEMA"] == s.name and grant["NAME"] in s.tables]
+                else:
+                    filtered_table_grants_per_schema = [grant for grant in table_grants if grant["TABLE_SCHEMA"] == s.name]
+                filtered_table_grants.extend(filtered_table_grants_per_schema)
+            
+            table_grants = filtered_table_grants
+
+        grants_raw = database_grants + schema_grants + table_grants
 
         grants = [SnowflakeGrant(privilege=grant["PRIVILEGE"],
                                  granted_on=grant["GRANTED_ON"],
