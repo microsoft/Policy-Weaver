@@ -37,7 +37,9 @@ class ColumnMaskType(str, CommonBaseEnum):
     Attributes:
         GROUP_MEMBERSHIP (str): Represents a column mask based on group membership.
     """    
-    GROUP_MEMBERSHIP = "GROUP_MEMBERSHIP"
+    UNMASK_FOR_GROUP = "UNMASK_FOR_GROUP"
+    MASK_FOR_GROUP = "MASK_FOR_GROUP"
+    UNSUPPORTED = "UNSUPPORTED"
 
 
 class PermissionType(str, CommonBaseEnum):

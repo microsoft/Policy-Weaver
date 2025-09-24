@@ -57,6 +57,28 @@ class PolicyPermissionScope(CommonBaseModel):
     attribute_name: Optional[PolicyAttributeType] = Field(alias="attributeName", default=None)
     attribute_value_included_in: Optional[List[str]] = Field(alias="attributeValueIncludedIn", default=None)
 
+class ColumnConstraint(CommonBaseModel):
+    """
+    Represents a column constraint in a policy decision rule.
+    Attributes:
+        table_path: The path of the table to which the constraint applies.
+        column_names: A list of column names to which the constraint applies.
+        column_effect: The effect of the constraint (e.g., Permit).
+        column_action: The action associated with the constraint (e.g., Read, Write).
+    """
+    table_path: Optional[str] = Field(alias="tablePath", default=None)
+    column_names: Optional[List[str]] = Field(alias="columnNames", default=None)
+    column_effect: Optional[PolicyEffectType] = Field(alias="columnEffect", default=None)
+    column_action: Optional[List[FabricPolicyAccessType]] = Field(alias="columnAction", default=None)
+
+class Constraints(CommonBaseModel):
+    """
+    Represents constraints in a policy decision rule.
+    Attributes:
+        columns: A list of column constraints associated with the policy decision.
+    """
+    columns: Optional[List[ColumnConstraint]] = Field(alias="columns", default=None)
+
 
 class PolicyDecisionRule(CommonBaseModel):
     """
@@ -67,6 +89,7 @@ class PolicyDecisionRule(CommonBaseModel):
     """
     effect: Optional[PolicyEffectType] = Field(alias="effect", default=None)
     permission: Optional[List[PolicyPermissionScope]] = Field(alias="permission", default=None)
+    constraints: Optional[Constraints] = Field(alias="constraints", default=None)
 
 
 class DataAccessPolicy(CommonBaseModel):

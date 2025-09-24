@@ -95,6 +95,25 @@ class PermissionScope(CommonBaseModel):
     name: Optional[PermissionType] = Field(alias="name", default=None)
     state: Optional[PermissionState] = Field(alias="state", default=None)
 
+class ColumnConstraint(CommonBaseModel):
+    """
+    Represents a constraint in the Policy Weaver application.
+    Attributes:
+        column_action (str): The action associated with the column constraint.
+        column_effect (str): The effect of the column constraint.
+        column_names (List[str]): A list of column names to which the constraint applies.
+        table_name (str): The name of the table associated with the constraint.
+        schema_name (str): The schema of the table.
+        catalog_name (str): The catalog of the table.
+
+    """
+    column_actions: Optional[List[PermissionType]] = Field(alias="column_actions", default=None)
+    column_effect: Optional[PermissionState] = Field(alias="column_effect", default=None)
+    column_names: Optional[List[str]] = Field(alias="column_names", default=None)
+    table_name: Optional[str] = Field(alias="table_name", default=None)
+    schema_name: Optional[str] = Field(alias="schema_name", default=None)
+    catalog_name: Optional[str] = Field(alias="catalog_name", default=None)
+
 class RolePolicy(CommonBaseModel):
     """
     Represents a policy in the Policy Weaver application.
@@ -107,6 +126,7 @@ class RolePolicy(CommonBaseModel):
     """
     permissionobjects: Optional[List[PermissionObject]] = Field(alias="permissionobjects", default=None)
     permissionscopes: Optional[List[PermissionScope]] = Field(alias="permissionscopes", default=None)
+    columnconstraints: Optional[List[ColumnConstraint]] = Field(alias="columnconstraints", default=None)
     name: Optional[str] = Field(alias="name", default=None)
 
 class RolePolicyExport(CommonBaseModel):

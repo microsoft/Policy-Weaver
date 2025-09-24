@@ -11,20 +11,21 @@ from typing import List, Tuple
 from policyweaver.models.config import (
     SourceSchema, Source
 )
-from policyweaver.plugins.databricks.model import (
-    DatabricksUser, DatabricksServicePrincipal, DatabricksGroup,
-    DatabricksGroupMember, Account, Workspace, Catalog, Schema, Table,
-    Function, FunctionMap, Privilege,
-)
+
+from policyweaver.core.enum import ColumnMaskType
 
 from policyweaver.plugins.snowflake.model import (
+    SnowflakeColumnMask,
+    SnowflakeColumnMaskExtraction,
     SnowflakeConnection,
     SnowflakeGrant,
+    SnowflakeMaskingPolicy,
     SnowflakeRole,
     SnowflakeRoleMemberMap,
     SnowflakeUser,
     SnowflakeDatabaseMap,
-    SnowflakeUserOrRole
+    SnowflakeUserOrRole,
+    SnowflakeTableWithMask
 )
 from policyweaver.core.enum import (
     IamType
@@ -72,6 +73,8 @@ class SnowflakeAPIClient:
         self.grants = None
         self.role_assignments = None
         self.user_assignments = None
+        self.masking_policies = []
+        self.tables_with_masks = []
 
 
 
@@ -131,7 +134,8 @@ class SnowflakeAPIClient:
                 results = cur.fetchall()
         return [dict(zip(columns, row)) for row in results]
 
-    def __get_database_map__(self) -> SnowflakeDatabaseMap:
+
+    def __get_database_map__(self, source: Source) -> SnowflakeDatabaseMap:
         """
         Retrieves the database map from the Snowflake account.
         Returns:
@@ -165,11 +169,18 @@ class SnowflakeAPIClient:
 
         # get grants to roles and users
 
-        self.grants = self.__get_grants__()
+        self.grants = self.__get_grants__(database=source.name)
 
-        return SnowflakeDatabaseMap(users=self.users, roles=self.roles, grants=self.grants)
+        # get column masks
 
-    def __get_grants__(self, database="DEMODATA") -> List[SnowflakeGrant]:
+        self.__get_column_masks__(database=source.name)
+
+        return SnowflakeDatabaseMap(users=self.users, roles=self.roles,
+                                    grants=self.grants,
+                                    masking_policies=self.masking_policies,
+                                    tables_with_masks=self.tables_with_masks)
+
+    def __get_grants__(self, database: str) -> List[SnowflakeGrant]:
 
         query = f"""select   "PRIVILEGE", "GRANTED_ON", "TABLE_CATALOG", "TABLE_SCHEMA", "NAME", "GRANTEE_NAME"
                     from     SNOWFLAKE.ACCOUNT_USAGE.GRANTS_TO_ROLES
@@ -187,6 +198,119 @@ class SnowflakeAPIClient:
                                  grantee_name=grant["GRANTEE_NAME"]) for grant in grants_raw]
         
         return grants
+
+    def __get_column_masks__(self, database: str) -> List[SnowflakeColumnMask]:
+        """Retrieves the column masking policies for a specific database.
+        Args:
+            database (str): The name of the database for which to retrieve column masking policies.
+        Returns:
+            List[SnowflakeMaskingPolicy]: A list of SnowflakeMaskingPolicy objects representing the column masking policies.
+        """
+
+        query = f"""                            
+                SELECT
+                    mp.POLICY_BODY,
+                    pr.POLICY_ID,
+                    pr.POLICY_NAME,
+                    pr.ref_database_name,
+                    pr.ref_schema_name,
+                    pr.ref_entity_name,
+                    pr.ref_column_name
+                FROM SNOWFLAKE.ACCOUNT_USAGE.POLICY_REFERENCES pr
+                JOIN SNOWFLAKE.ACCOUNT_USAGE.MASKING_POLICIES mp
+                    ON pr.POLICY_ID = mp.POLICY_ID
+                WHERE pr.POLICY_KIND = 'MASKING_POLICY'
+                AND pr.REF_DATABASE_NAME = '{database.upper()}' AND REF_ENTITY_DOMAIN = 'TABLE' AND POLICY_STATUS = 'ACTIVE';
+
+                ;"""
+
+        masking_policies = self.__run_query__(query, columns=["POLICY_BODY", "POLICY_ID",
+                                                                   "POLICY_NAME", "ref_database_name",
+                                                                   "ref_schema_name",
+                                                                   "ref_entity_name",
+                                                                   "ref_column_name"])
+        
+        
+        self.masking_policies = list()
+        self.tables_with_masks = list()
+        for mp in masking_policies:
+            extraction = self.__process_masking_policy__(mp["POLICY_BODY"], column_name=mp["ref_column_name"])
+            mp = SnowflakeMaskingPolicy(id=mp["POLICY_ID"],
+                                        name=mp["POLICY_NAME"],
+                                        database_name=mp["ref_database_name"],
+                                        schema_name=mp["ref_schema_name"],
+                                        table_name=mp["ref_entity_name"],
+                                        column_name=mp["ref_column_name"],
+                                        group_names=extraction.group_names,
+                                        mask_pattern=extraction.mask_pattern,
+                                        column_mask_type=extraction.column_mask_type
+                                        )
+            self.masking_policies.append(mp)
+
+            query = f"""SELECT COLUMN_NAME FROM SNOWFLAKE.ACCOUNT_USAGE.COLUMNS WHERE TABLE_CATALOG = 'DEMODATA' AND TABLE_SCHEMA = 'ANALYST' AND TABLE_NAME = 'ANALYST';"""
+            columns = self.__run_query__(query, columns=["COLUMN_NAME"])
+            column_names = [c["COLUMN_NAME"] for c in columns]
+            self.tables_with_masks.append(SnowflakeTableWithMask(
+                database_name=mp.database_name,
+                schema_name=mp.schema_name,
+                table_name=mp.table_name,
+                column_names=column_names
+            ))
+             
+
+
+
+    def __process_masking_policy__(self, policy_body: str, column_name: str) -> SnowflakeColumnMaskExtraction:
+        """
+        Processes a masking policy dictionary to extract the mask type, group name, and mask pattern.
+        Args:
+            mp (dict): A dictionary representing a masking policy.
+        Returns:
+            SnowflakeColumnMask: A SnowflakeColumnMask object with the extracted information.
+        """
+
+        result = SnowflakeColumnMaskExtraction()
+                
+        definition = policy_body.replace("\n", " ").replace("\r", " ").replace(" ", "")
+
+        if not(definition[:8] == "CASEWHEN" and definition[8:24] == "CURRENT_ROLE()IN"):
+            raise ValueError("Unexpected format: does not start with 'CASE WHEN CURRENT_ROLE() IN '")
+        group_names = definition[25:].split(")")[0].replace("'", "").replace('"', '')
+
+        index_ = 25 + len(group_names) + 3
+        if definition[index_:index_+4] != "THEN":
+            raise ValueError("Unexpected format: 'THEN' not found where expected.")
+        split_ = definition[index_ + 4 : ].split("ELSE")
+
+        mask = None
+        column_name_pos = None
+        assigned_value = split_[0]
+        if assigned_value[0] in ["'", '"']:
+            assigned_value = assigned_value[1:-1]
+            mask = assigned_value
+        else:
+            column_name_pos = 1
+
+        unassigned_value = split_[1].replace("END", "")
+        if unassigned_value[0] in ["'", '"']:
+            unassigned_value = unassigned_value[1:-1]
+            mask = unassigned_value
+        else:
+            column_name_pos = 2
+
+        result.group_names = group_names.split(",")
+        result.mask_pattern = mask
+        if column_name_pos == 1:
+            result.column_mask_type = ColumnMaskType.UNMASK_FOR_GROUP
+        elif column_name_pos == 2:
+            result.column_mask_type = ColumnMaskType.MASK_FOR_GROUP
+        else:
+            result.column_mask_type = ColumnMaskType.UNSUPPORTED
+
+        
+        return result
+
+
 
     def __get_user_role_assignment__(self, user: SnowflakeUserOrRole, is_user: bool) -> List[SnowflakeRole]:
         

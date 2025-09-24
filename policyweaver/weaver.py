@@ -23,7 +23,9 @@ from policyweaver.models.fabric import (
     PolicyMembers,
     EntraMember,
     FabricMemberObjectType,
-    FabricPolicyAccessType
+    FabricPolicyAccessType,
+    ColumnConstraint,
+    Constraints
 )
 from policyweaver.models.export import PolicyExport, RolePolicyExport, RolePolicy, PermissionObject
 from policyweaver.models.config import SourceMap
@@ -612,7 +614,21 @@ class WeaverAgent:
                     if table_path != "*":
                         table_path = f"/{table_path}"
                     table_paths.append(table_path)
+        
+        columnconstraints = []
 
+        if policy.columnconstraints:
+            for cc in policy.columnconstraints:
+                if PermissionType.SELECT in cc.column_actions and cc.column_effect == PermissionState.GRANT:
+                    table_path = self.__get_table_mapping__(cc.catalog_name, cc.schema_name, cc.table_name)
+                    if table_path and table_path != "*":
+                        table_path = f"/{table_path}"
+                    column_names = cc.column_names if cc.column_names else "*"
+                    columnconstraints.append(ColumnConstraint(table_path=table_path,
+                                                            column_names=column_names,
+                                                            column_effect=PolicyEffectType.PERMIT,
+                                                            column_action=[FabricPolicyAccessType.READ]))
+                                                        
         if not table_paths:
             self.logger.warning(f"POLICY WEAVER - No valid table mappings found for policy {policy.name}. Skipping...")
             return None
@@ -627,15 +643,19 @@ class WeaverAgent:
                             attribute_value_included_in=[access_policy_type],
                         ),
                     ]
-
-        dap = DataAccessPolicy(
-            name=role_name,
-            decision_rules=[
-                PolicyDecisionRule(
+   
+        pdr = PolicyDecisionRule(
                     effect=PolicyEffectType.PERMIT,
                     permission=permission_scopes,
                 )
-            ],
+        
+        if columnconstraints:
+            constraints = Constraints(columns=columnconstraints)
+            pdr.constraints = constraints
+
+        dap = DataAccessPolicy(
+            name=role_name,
+            decision_rules=[pdr],
             members=PolicyMembers(
                 entra_members=[]
             ),
