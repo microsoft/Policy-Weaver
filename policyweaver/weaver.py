@@ -616,18 +616,27 @@ class WeaverAgent:
                     table_paths.append(table_path)
         
         columnconstraints = []
+        tables_with_all_columns_denied = []
 
-        if policy.columnconstraints:
+        if policy.columnconstraints and self.config.constraints and self.config.constraints.columns and self.config.constraints.columns.columnlevelsecurity:
             for cc in policy.columnconstraints:
                 if PermissionType.SELECT in cc.column_actions and cc.column_effect == PermissionState.GRANT:
                     table_path = self.__get_table_mapping__(cc.catalog_name, cc.schema_name, cc.table_name)
                     if table_path and table_path != "*":
                         table_path = f"/{table_path}"
-                    column_names = cc.column_names if cc.column_names else "*"
+                    column_names = cc.column_names
+                    if not column_names:
+                        tables_with_all_columns_denied.append(table_path)
+                        continue
+
                     columnconstraints.append(ColumnConstraint(table_path=table_path,
                                                             column_names=column_names,
                                                             column_effect=PolicyEffectType.PERMIT,
                                                             column_action=[FabricPolicyAccessType.READ]))
+                    
+        # Remove all tablepaths that have all columns denied
+        table_paths = [tp for tp in table_paths if tp not in tables_with_all_columns_denied]
+
                                                         
         if not table_paths:
             self.logger.warning(f"POLICY WEAVER - No valid table mappings found for policy {policy.name}. Skipping...")

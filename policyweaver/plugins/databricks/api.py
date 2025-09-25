@@ -396,8 +396,7 @@ class DatabricksAPIClient:
 
         return schemas
     
-    @staticmethod
-    def __extract_group_from_mask_function__(sql_definition: str, column_name: str) -> ColumnMaskExtraction:
+    def __extract_group_from_mask_function__(self, sql_definition: str, column_name: str) -> ColumnMaskExtraction:
         """
         Extracts the group name and mask pattern from a column mask function definition.
         
@@ -406,15 +405,17 @@ class DatabricksAPIClient:
         Returns:
             dict: Dictionary containing 'group_name' and 'mask_pattern', or None values if not found
         """
-        result = ColumnMaskExtraction()
+        result = ColumnMaskExtraction(column_mask_type=ColumnMaskType.UNSUPPORTED)
                 
         definition = sql_definition.replace("\n", " ").replace("\r", " ").replace(" ", "")
         if not(definition[:8] == "CASEWHEN" and definition[8:31] == "is_account_group_member"):
-            raise ValueError("Unexpected format: does not start with 'CASE WHEN is_account_group_member'")
+            self.logger.warning("Unexpected format: does not start with 'CASE WHEN is_account_group_member'")
+            return result
         group_name = definition[32:].split(")")[0].replace("'", "").replace('"', '')
         index_ = 32 + len(group_name) + 3
         if definition[index_:index_+4] != "THEN":
-            raise ValueError("Unexpected format: 'THEN' not found where expected.")
+            self.logger.warning("Unexpected format: 'THEN' not found where expected.")
+            return result
         split_ = definition[index_ + 4 : ].split("ELSE")
 
         mask = None

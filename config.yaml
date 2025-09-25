@@ -11,6 +11,10 @@ fabric:
   fabric_role_prefix: PW
   delete_default_reader_role: true
   policy_mapping: < table_based or role_based , the first will create one role per table, the latter one role per dbx group/snowflake role>
+constraints:
+  columns:
+    columnlevelsecurity: true
+    fallback: deny
 service_principal:
   client_id: <Depending on the keyvault setting: the keyvault secret name or your azure SP client id>
   client_secret: <Depending on the keyvault setting: the keyvault secret name or your azure SP secret>

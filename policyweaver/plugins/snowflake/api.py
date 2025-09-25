@@ -258,7 +258,7 @@ class SnowflakeAPIClient:
         self.masking_policies = list()
         self.tables_with_masks = list()
         for mp in masking_policies:
-            extraction = self.__process_masking_policy__(mp["POLICY_BODY"], column_name=mp["ref_column_name"])
+            extraction = self.__process_masking_policy__(mp["POLICY_BODY"])
             mp = SnowflakeMaskingPolicy(id=mp["POLICY_ID"],
                                         name=mp["POLICY_NAME"],
                                         database_name=mp["ref_database_name"],
@@ -282,9 +282,7 @@ class SnowflakeAPIClient:
             ))
              
 
-
-
-    def __process_masking_policy__(self, policy_body: str, column_name: str) -> SnowflakeColumnMaskExtraction:
+    def __process_masking_policy__(self, policy_body: str) -> SnowflakeColumnMaskExtraction:
         """
         Processes a masking policy dictionary to extract the mask type, group name, and mask pattern.
         Args:
@@ -293,17 +291,19 @@ class SnowflakeAPIClient:
             SnowflakeColumnMask: A SnowflakeColumnMask object with the extracted information.
         """
 
-        result = SnowflakeColumnMaskExtraction()
-                
+        result = SnowflakeColumnMaskExtraction(column_mask_type=ColumnMaskType.UNSUPPORTED)
+
         definition = policy_body.replace("\n", " ").replace("\r", " ").replace(" ", "")
 
         if not(definition[:8] == "CASEWHEN" and definition[8:24] == "CURRENT_ROLE()IN"):
-            raise ValueError("Unexpected format: does not start with 'CASE WHEN CURRENT_ROLE() IN '")
+            self.logger.warning("Unexpected format: does not start with 'CASE WHEN CURRENT_ROLE() IN'")
+            return result
         group_names = definition[25:].split(")")[0].replace("'", "").replace('"', '')
 
         index_ = 25 + len(group_names) + 3
         if definition[index_:index_+4] != "THEN":
-            raise ValueError("Unexpected format: 'THEN' not found where expected.")
+            self.logger.warning("Unexpected format: 'THEN' not found where expected.")
+            return result
         split_ = definition[index_ + 4 : ].split("ELSE")
 
         mask = None

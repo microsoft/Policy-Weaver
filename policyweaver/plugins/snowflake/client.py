@@ -152,6 +152,8 @@ class SnowflakePolicyWeaver(PolicyWeaverCore):
         special_grants = []
 
         for masking_policy in self.map.masking_policies:
+            if masking_policy.column_mask_type == ColumnMaskType.UNSUPPORTED:
+                continue
             sfg = SnowflakeGrant(table_catalog=masking_policy.database_name,
                                  table_schema=masking_policy.schema_name,
                                  name=masking_policy.table_name)
@@ -220,7 +222,7 @@ class SnowflakePolicyWeaver(PolicyWeaverCore):
 
         return permission_objects
 
-    def _build_role_based_policy__(self, grantee_name: str, grants: list[SnowflakeGrant]) -> RolePolicy:
+    def _build_role_based_policy__(self, grantee_name: str, grants: list[SnowflakeGrant], column_security: bool) -> RolePolicy:
 
         permission_scopes = []    
         columnconstraints = []
@@ -240,6 +242,10 @@ class SnowflakePolicyWeaver(PolicyWeaverCore):
                                          mp.table_name == table_name]
             if not matching_mask_policies:
                 continue
+
+            if not column_security:
+                continue
+
             # Get role for grantee
             roles = [role for role in self.map.roles if role.name == grantee_name]
             if not roles:
@@ -253,8 +259,10 @@ class SnowflakePolicyWeaver(PolicyWeaverCore):
             columns_to_deny = []
             for mp in matching_mask_policies:
                 if mp.column_mask_type == ColumnMaskType.UNSUPPORTED:
-                    self.logger.warning(f"Unsupported column mask type for masking policy {mp.name} on {mp.database_name}.{mp.schema_name}.{mp.table_name}.{mp.column_name}")
-                    continue
+                    self.logger.warning(f"Unsupported column mask type for masking policy {mp.name} on {mp.database_name}.{mp.schema_name}.{mp.table_name}.{mp.column_name}.")
+                    self.logger.warning(f"Using fallback: {self.config.constraints.columns.fallback}")
+                    if self.config.constraints.columns.fallback != "grant":
+                        columns_to_deny.append(mp.column_name)
                 elif mp.column_mask_type == ColumnMaskType.UNMASK_FOR_GROUP:
                     if not any([role for role in role_assignments if role.name in mp.group_names]):
                         columns_to_deny.append(mp.column_name)
@@ -292,6 +300,13 @@ class SnowflakePolicyWeaver(PolicyWeaverCore):
     def __build_role_based_policy_export__(self) -> RolePolicyExport:
         policy_export = RolePolicyExport(source=self.config.source, type=self.config.type,
                                          policies=[])
+        
+        if not(self.config.constraints and self.config.constraints.columns and self.config.constraints.columns.columnlevelsecurity):
+            self.logger.warning("Column level security is not enabled in the config.")
+            column_security = False
+        else:
+            self.logger.info("Column level security is enabled in the config.")
+            column_security = True
 
         # group grants by granteename
         grants_by_grantee = {}
@@ -301,7 +316,7 @@ class SnowflakePolicyWeaver(PolicyWeaverCore):
             grants_by_grantee[grant.grantee_name].append(grant)
 
         for grantee_name, grants in grants_by_grantee.items():
-            policy = self._build_role_based_policy__(grantee_name, grants)
+            policy = self._build_role_based_policy__(grantee_name, grants, column_security)
             if policy:
                 policy_export.policies.append(policy)
 
