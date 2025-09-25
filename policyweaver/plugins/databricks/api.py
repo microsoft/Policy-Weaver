@@ -1,6 +1,7 @@
 import logging
 import json
 import os
+import re
 from pydantic.json import pydantic_encoder
 
 from databricks.sdk import (
@@ -15,11 +16,12 @@ from policyweaver.models.config import (
     SourceSchema, Source
 )
 from policyweaver.plugins.databricks.model import (
-    DatabricksUser, DatabricksServicePrincipal, DatabricksGroup,
-    DatabricksGroupMember, Account, Workspace, Catalog, Schema, Table,
+    DatabricksColumnMask, ColumnMaskExtraction, DatabricksUser, DatabricksServicePrincipal, DatabricksGroup,
+    DatabricksGroupMember, Account, TableObject, Workspace, Catalog, Schema, Table,
     Function, FunctionMap, Privilege
 )
 from policyweaver.core.enum import (
+    ColumnMaskType,
     IamType
 )
 
@@ -209,16 +211,10 @@ class DatabricksAPIClient:
                 service_principals=self.__account.service_principals
             )
 
-            self.__workspace.catalog = Catalog(
-                    name=api_catalog.name,
-                    schemas=self.__get_catalog_schemas__(
-                        api_catalog.name, source.schemas
-                    ),
-                    privileges=self.__get_privileges__(
-                        SecurableType.CATALOG.value, api_catalog.name
-                    ),
-                )
-            
+            self.__workspace.catalog = Catalog(name=api_catalog.name, column_masks=[], tables_with_masks=[])
+            self.__workspace.catalog.schemas = self.__get_catalog_schemas__(api_catalog.name, source.schemas)
+            self.__workspace.catalog.privileges = self.__get_privileges__(SecurableType.CATALOG.value, api_catalog.name)
+
             self.logger.debug(f"DBX WORKSPACE Policy Map for {api_catalog.name}: {json.dumps(self.__workspace, default=pydantic_encoder, indent=4)}")
             return (self.__account, self.__workspace)
         except NotFound:
@@ -399,6 +395,78 @@ class DatabricksAPIClient:
         self.logger.debug(f"DBX WORKSPACE Schemas for {catalog}: {json.dumps(schemas, default=pydantic_encoder, indent=4)}")
 
         return schemas
+    
+    def __extract_group_from_mask_function__(self, sql_definition: str, column_name: str) -> ColumnMaskExtraction:
+        """
+        Extracts the group name and mask pattern from a column mask function definition.
+        
+        Args:
+            sql_definition (str): The SQL definition containing is_account_group_member function
+        Returns:
+            dict: Dictionary containing 'group_name' and 'mask_pattern', or None values if not found
+        """
+        result = ColumnMaskExtraction(column_mask_type=ColumnMaskType.UNSUPPORTED)
+                
+        definition = sql_definition.replace("\n", " ").replace("\r", " ").replace(" ", "")
+        if not(definition[:8] == "CASEWHEN" and definition[8:31] == "is_account_group_member"):
+            self.logger.warning("Unexpected format: does not start with 'CASE WHEN is_account_group_member'")
+            return result
+        group_name = definition[32:].split(")")[0].replace("'", "").replace('"', '')
+        index_ = 32 + len(group_name) + 3
+        if definition[index_:index_+4] != "THEN":
+            self.logger.warning("Unexpected format: 'THEN' not found where expected.")
+            return result
+        split_ = definition[index_ + 4 : ].split("ELSE")
+
+        mask = None
+        column_name_pos = None
+        assigned_value = split_[0]
+        if assigned_value[0] in ["'", '"']:
+            assigned_value = assigned_value[1:-1]
+            mask = assigned_value
+        elif column_name == assigned_value:
+            column_name_pos = 1
+
+        unassigned_value = split_[1].replace("END", "")
+        if unassigned_value[0] in ["'", '"']:
+            unassigned_value = unassigned_value[1:-1]
+            mask = unassigned_value
+        elif column_name == unassigned_value:
+            column_name_pos = 2
+
+        result.group_name = group_name
+        result.mask_pattern = mask
+        if column_name_pos == 1:
+            result.column_mask_type = ColumnMaskType.UNMASK_FOR_GROUP
+        elif column_name_pos == 2:
+            result.column_mask_type = ColumnMaskType.MASK_FOR_GROUP
+        else:
+            result.column_mask_type = ColumnMaskType.UNSUPPORTED
+
+        
+        return result
+
+    def __get_column_mask__(self, catalog_name: str, schema_name: str, table_name: str, column_name: str, func_map: FunctionMap) -> DatabricksColumnMask:
+        """Retrieves the column mask for a given function map.
+        Args:
+            column_name (str): The name of the column to retrieve the mask for.
+            func_map (FunctionMap): The FunctionMap object containing the name and columns of the column mask function.
+        Returns:
+            ColumnMask: A ColumnMask object representing the column mask function.
+        """
+        func = self.workspace_client.functions.get(func_map.name)
+        extraction = self.__extract_group_from_mask_function__(sql_definition=func.routine_definition, column_name=column_name)
+        col_mask = DatabricksColumnMask(name=func_map.name,
+                              routine_definition=func.routine_definition,
+                              column_name=column_name,
+                              catalog_name=catalog_name,
+                              schema_name=schema_name,
+                              table_name=table_name)
+        if extraction:
+            col_mask.group_name = extraction.group_name
+            col_mask.mask_pattern = extraction.mask_pattern
+            col_mask.mask_type = extraction.column_mask_type
+        return col_mask
 
     def __get_schema_tables__(self, catalog: str, schema: str, table_filters: List[str]) -> List[Table]:
         """
@@ -417,26 +485,35 @@ class DatabricksAPIClient:
         if table_filters:
             api_tables = [t for t in api_tables if t.name in table_filters]
 
-        tables = [
-            Table(
-                name=t.name,
-                row_filter=None
-                if not t.row_filter
-                else FunctionMap(
-                    name=t.row_filter.function_name,
-                    columns=t.row_filter.input_column_names,
-                ),
-                column_masks=[
-                    FunctionMap(
-                        name=c.mask.function_name, columns=c.mask.using_column_names
+        tables = []
+        for t in api_tables:
+
+            cms = [self.__get_column_mask__(catalog_name=catalog, schema_name=schema, table_name=t.name, column_name=c.name, func_map=FunctionMap(
+                                name=c.mask.function_name, columns=c.mask.using_column_names
+                            ))
+                            for c in t.columns
+                            if c.mask
+                        ]
+
+            self.__workspace.catalog.column_masks.extend(cms)
+            if cms:
+                self.__workspace.catalog.tables_with_masks.append(TableObject(catalog_name=catalog,
+                                                                              schema_name=schema,
+                                                                              table_name=t.name,
+                                                                              columns=[c.name for c in t.columns]))
+
+            t_ = Table(
+                        name=t.name,
+                        row_filter=None
+                        if not t.row_filter
+                        else FunctionMap(
+                            name=t.row_filter.function_name,
+                            columns=t.row_filter.input_column_names,
+                        ),
+                        column_masks=cms,
+                        privileges=self.__get_privileges__(SecurableType.TABLE.value, t.full_name),
                     )
-                    for c in t.columns
-                    if c.mask
-                ],
-                privileges=self.__get_privileges__(SecurableType.TABLE.value, t.full_name),
-            )
-            for t in api_tables
-        ]
+            tables.append(t_)
 
         self.logger.debug(f"DBX WORKSPACE Tables for {catalog}.{schema}: {json.dumps(tables, default=pydantic_encoder, indent=4)}")
 

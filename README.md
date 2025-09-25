@@ -186,6 +186,10 @@ Here ´s how the config.yaml should be adjusted to your environment:
     - fabric_role_prefix: prefix for the fabric roles created by Policy Weaver (default: PW)
     - delete_default_reader_role: true/false (if true, the DefaultReader role created by Fabric will be deleted, if false it will be kept, default: true)
     - policy_mapping: table_based / role_based (table_based: create one role per table, role_based: create one role per role/group, default: table_based)
+- constraints:
+    - columns: (optional, if not set, no column level security will be applied, see below for details)
+      - columnlevelsecurity: true/false (if true, column level security will be applied at best effort. Default: false)
+      - fallback: grant/deny (if a not supported column mask is found, the fallback will be applied. Default: deny)
 
 - service_principal:
   - client_id: the client id of the service principal mentioned under general prerequisites **OR** the corresponding secret name in the keyvault if you use keyvault
@@ -214,6 +218,10 @@ fabric:
   fabric_role_prefix: PW
   delete_default_reader_role: true
   policy_mapping: role_based
+constraints:
+  columns:
+    columnlevelsecurity: true
+    fallback: deny
 service_principal:
   client_id: 89ac5a4sd894as9df4sad89f
   client_secret: 1234556dsad4848129
@@ -255,6 +263,10 @@ fabric:
   fabric_role_prefix: PW
   delete_default_reader_role: true
   policy_mapping: role_based
+constraints:
+  columns:
+    columnlevelsecurity: true
+    fallback: deny
 service_principal:
   client_id: kv-service-principal-client-id
   client_secret: kv-service-principal-client-secret
@@ -278,6 +290,26 @@ snowflake:
   warehouse: COMPUTE_WH
 ```
 
+
+## :books: Column Level Security
+
+Column level security is an optional feature that can be enabled in the config file. If enabled, Policy Weaver will try to apply column level security at best effort and fallback to the configured fallback if a not supported column mask is found.
+
+:warning: NOTE: Column level security is only enabled if the config `policy_mapping` is set to `role_based`. In the case of table_based mapping there would be an unforeseeable high number of roles created in Fabric. That´s why it can only be used in role_based mapping.
+
+Databricks and Snowflake support column level security by column mask policies. However, OneLake Security currently only supports column level security by denying access to specific columns.
+
+Given the biggest use case for column mask policies is to hide the whole column, this still aligns. However, if you have a column mask policy that is not supported by Policy Weaver, you can configure the fallback to either grant or deny access to this column by default.
+
+Supported column mask policies:
+- Databricks:
+  - Allow only a specific group to see the real value. I.e. the function looks like `CASE WHEN is_account_group_member('HumanResourceDept') THEN ssn ELSE '<arbitrary_value>' END`
+  - Allow everyone except a specific group to see the real value.  I.e. the function looks like `CASE WHEN is_account_group_member('HumanResourceDept') THEN '<arbitrary_value>' ELSE ssn END`
+- Snowflake:
+  - Allow only a specific role to see the real value. I.e. the function looks like `CASE WHEN CURRENT_ROLE() IN ('HR_ROLE') THEN ssn ELSE '<arbitrary_value>' END`
+  - Allow everyone except a specific role to see the real value.  I.e. the function looks like `CASE WHEN CURRENT_ROLE() IN ('HR_ROLE') THEN '<arbitrary_value>' ELSE ssn END`
+
+If for a specific role all columns of a table are denied, the whole table is denied to this role and will not show up in the Fabric for this role.
 
 :raising_hand: Contributing
 

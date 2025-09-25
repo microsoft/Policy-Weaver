@@ -1,6 +1,7 @@
 from pydantic import Field
 from typing import Optional, List
 
+from policyweaver.core.enum import ColumnMaskType
 from policyweaver.models.common import CommonBaseModel
 from policyweaver.models.config import SourceMap
 
@@ -78,6 +79,72 @@ class SnowflakeGrant(CommonBaseModel):
     name: Optional[str] = Field(alias="name", default=None)
     grantee_name: Optional[str] = Field(alias="grantee_name", default=None)
 
+
+class SnowflakeTableWithMask(CommonBaseModel):
+    """
+    Represents a table in Snowflake that has column masks applied.
+    Attributes:
+        database_name (Optional[str]): The name of the database containing the table.
+        schema_name (Optional[str]): The name of the schema containing the table.
+        table_name (Optional[str]): The name of the table.
+        column_names (Optional[List[str]]): A list of column names in the table that have masks applied.
+    """
+    database_name: Optional[str] = Field(alias="database_name", default=None)
+    schema_name: Optional[str] = Field(alias="schema_name", default=None)
+    table_name: Optional[str] = Field(alias="table_name", default=None)
+    column_names: Optional[List[str]] = Field(alias="column_names", default=None)
+
+
+class SnowflakeMaskingPolicy(CommonBaseModel):
+    """
+    Represents a masking policy in the Snowflake workspace.
+    Attributes:
+        id (Optional[int]): The unique identifier for the masking policy.
+        name (Optional[str]): The name of the masking policy.
+        database_name (Optional[str]): The name of the database to which the masking policy applies.
+        schema_name (Optional[str]): The name of the schema to which the masking policy applies.
+        entity_name (Optional[str]): The name of the entity to which the masking policy applies.
+        column_name (Optional[str]): The name of the column to which the masking policy applies.
+    """
+    id: Optional[int] = Field(alias="id", default=None)
+    name: Optional[str] = Field(alias="name", default=None)
+    database_name: Optional[str] = Field(alias="database_name", default=None)
+    schema_name: Optional[str] = Field(alias="schema_name", default=None)
+    table_name: Optional[str] = Field(alias="table_name", default=None)
+    column_name: Optional[str] = Field(alias="column_name", default=None)
+    group_names: Optional[List[str]] = Field(alias="group_names", default=None)
+    mask_pattern: Optional[str] = Field(alias="mask_pattern", default=None)
+    column_mask_type: Optional[ColumnMaskType] = Field(alias="column_mask_type", default=None)
+
+class SnowflakeColumnMaskExtraction(CommonBaseModel):
+    """
+    Represents the result of extracting group name and mask pattern from a column mask function definition.
+    Attributes:
+        group_name (Optional[str]): The name of the group associated with the column mask.
+        mask_pattern (Optional[str]): The mask pattern applied by the column mask.
+        column_mask_type (Optional[ColumnMaskType]): The type of the column mask (e.g., UNMASK_FOR_GROUP, MASK_FOR_GROUP, UNSUPPORTED).
+    """
+    group_names: Optional[List[str]] = Field(alias="group_name", default=None)
+    mask_pattern: Optional[str] = Field(alias="mask_pattern", default=None)
+    column_mask_type: Optional[ColumnMaskType] = Field(alias="column_mask_type", default=None)
+
+class SnowflakeColumnMask(CommonBaseModel):
+    """
+    Represents a column mask that can be applied to data in the Databricks workspace.
+    This class extends BaseObject to include the routine definition of the mask.
+    Attributes:
+        name: (Optional[str]): The name of the column mask .
+        routine_definition (Optional[str]): The SQL definition of the column mask routine.
+        column_name (Optional[str]): The name of the column to which the mask applies.
+    """
+
+    name: Optional[str] = Field(alias="name", default=None)
+    routine_definition: Optional[str] = Field(alias="routine_definition", default=None)
+    column_name: Optional[str] = Field(alias="column_name", default=None)
+    mask_type: Optional[ColumnMaskType] = Field(alias="mask_type", default=None)
+    group_names: Optional[List[str]] = Field(alias="group_name", default=None)
+    mask_pattern: Optional[str] = Field(alias="mask_pattern", default=None)
+
 class SnowflakeDatabaseMap(CommonBaseModel):
     """
     A collection of Snowflake users, roles, and grants for a database
@@ -85,10 +152,13 @@ class SnowflakeDatabaseMap(CommonBaseModel):
         users (List[SnowflakeUser]): The list of users in the Snowflake database.
         roles (List[SnowflakeRole]): The list of roles in the Snowflake database.
         grants (List[SnowflakeGrant]): The list of grants in the Snowflake database.
+        masking_policies (List[SnowflakeMaskingPolicy]): The list of masking policies in the Snowflake database.
     """
     users: List[SnowflakeUser] = Field(alias="users", default_factory=list)
     roles: List[SnowflakeRole] = Field(alias="roles", default_factory=list)
     grants: List[SnowflakeGrant] = Field(alias="grants", default_factory=list)
+    masking_policies: List[SnowflakeMaskingPolicy] = Field(alias="masking_policies", default_factory=list)
+    tables_with_masks: List[SnowflakeTableWithMask] = Field(alias="tables_with_masks", default_factory=list)
 
 class SnowflakeConnection(CommonBaseModel):
     """

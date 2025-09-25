@@ -4,7 +4,7 @@ from typing import Optional, List, Dict
 from policyweaver.core.utility import Utils
 from policyweaver.models.common import CommonBaseModel
 from policyweaver.models.config import SourceMap
-from policyweaver.core.enum import IamType
+from policyweaver.core.enum import ColumnMaskType, IamType
 
 class DependencyMap(CommonBaseModel):
     """
@@ -137,6 +137,39 @@ class FunctionMap(BaseObject):
     """
     columns: Optional[List[str]] = Field(alias="column", default=None)
 
+class ColumnMaskExtraction(CommonBaseModel):
+    """
+    Represents the extraction of a column mask from a SQL definition.
+    This class is used to capture the details of a column mask, including the group name and mask pattern.
+    Attributes:
+        group_name (Optional[str]): The name of the group associated with the column mask.
+        mask_pattern (Optional[str]): The pattern used for masking the column.
+        column_mask_type (Optional[ColumnMaskType]): The type of the column mask (e.g., UNMASK_FOR_GROUP, MASK_FOR_GROUP).
+    """
+    group_name: Optional[str] = Field(alias="group_name", default=None)
+    mask_pattern: Optional[str] = Field(alias="mask_pattern", default=None)
+    column_mask_type: Optional[ColumnMaskType] = Field(alias="column_mask_type", default=None)
+
+class DatabricksColumnMask(CommonBaseModel):
+    """
+    Represents a column mask that can be applied to data in the Databricks workspace.
+    This class extends CommonBaseModel to include the routine definition of the mask.
+    Attributes:
+        name: (Optional[str]): The name of the column mask .
+        routine_definition (Optional[str]): The SQL definition of the column mask routine.
+        column_name (Optional[str]): The name of the column to which the mask applies.
+    """
+
+    name: Optional[str] = Field(alias="name", default=None)
+    routine_definition: Optional[str] = Field(alias="routine_definition", default=None)
+    catalog_name: Optional[str] = Field(alias="catalog_name", default=None)
+    schema_name: Optional[str] = Field(alias="schema_name", default=None)
+    table_name: Optional[str] = Field(alias="table_name", default=None)
+    column_name: Optional[str] = Field(alias="column_name", default=None)
+    mask_type: Optional[ColumnMaskType] = Field(alias="mask_type", default=None)
+    group_name: Optional[str] = Field(alias="group_name", default=None)
+    mask_pattern: Optional[str] = Field(alias="mask_pattern", default=None)
+
 class Function(PrivilegedObject):
     """
     Represents a function that can be applied to data in the Databricks workspace.
@@ -146,6 +179,14 @@ class Function(PrivilegedObject):
         This allows the function to be defined in SQL and applied to data as needed.
     """
     sql: Optional[str] = Field(alias="sql", default=None)
+
+class TableObject(CommonBaseModel):
+
+    catalog_name: Optional[str] = Field(alias="catalog_name", default=None)
+    schema_name: Optional[str] = Field(alias="schema_name", default=None)
+    table_name: Optional[str] = Field(alias="table_name", default=None)
+    privileges: Optional[List[Privilege]] = Field(alias="privileges", default=None)
+    columns: Optional[List[str]] = Field(alias="columns", default=None)
 
 class Table(PrivilegedObject):
     """
@@ -160,7 +201,7 @@ class Table(PrivilegedObject):
             to the rows of the table.
     This allows the table to define its structure and how functions can be applied to its data.
     """
-    column_masks: Optional[List[FunctionMap]] = Field(
+    column_masks: Optional[List[DatabricksColumnMask]] = Field(
         alias="column_masks", default=None
     )
     row_filter: Optional[FunctionMap] = Field(alias="row_filter", default=None)
@@ -190,6 +231,8 @@ class Catalog(PrivilegedObject):
     This allows the catalog to define its structure and the schemas that it contains.
     """
     schemas: Optional[List[Schema]] = Field(alias="schemas", default=None)
+    column_masks: Optional[List[DatabricksColumnMask]] = Field(alias="column_masks", default=None)
+    tables_with_masks: Optional[List[TableObject]] = Field(alias="tables_with_masks", default=None)
 
 class DatabricksUser(BaseObject):
     """

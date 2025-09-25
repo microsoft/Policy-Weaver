@@ -42,6 +42,26 @@ class Source(CommonBaseModel):
 
         return [s.name for s in self.schemas]
 
+class ColumnConstraintsConfig(CommonBaseModel):
+    """
+    Configuration for column constraints in the fabric.
+    Attributes:
+        columnlevelsecurity (bool): Flag to indicate whether column-level security is enabled.
+        fallback (str): The fallback policy, e.g., "deny" or "allow".
+    """
+    columnlevelsecurity: Optional[bool] = Field(alias="columnlevelsecurity", default=False)
+    fallback: Optional[str] = Field(alias="fallback", default="deny")
+
+class ConstraintsConfig(CommonBaseModel):
+    """
+    Configuration for fabric constraints in the Policy Weaver application.
+    Attributes:
+        columns (dict): A dictionary containing column-level security settings.
+            - columnlevelsecurity (bool): Flag to indicate whether column-level security is enabled.
+            - fallback (str): The fallback policy, e.g., "deny" or "allow".
+    """
+    columns: Optional[ColumnConstraintsConfig] = Field(alias="columns", default=None)
+
 class FabricConfig(CommonBaseModel):
     """
     Configuration for the fabric in the Policy Weaver application.
@@ -139,6 +159,7 @@ class SourceMap(CommonBaseModel):
     type: Optional[PolicyWeaverConnectorType] = Field(alias="type", default=None)
     source: Optional[Source] = Field(alias="source", default=None)
     fabric: Optional[FabricConfig] = Field(alias="fabric", default=None)
+    constraints: Optional[ConstraintsConfig] = Field(alias="constraints", default=None)
     service_principal: Optional[ServicePrincipalConfig] = Field(alias="service_principal", default=None)
     mapped_items: Optional[List[SourceMapItem]] = Field(alias="mapped_items", default=None)
     keyvault: Optional[KeyVaultConfig] = Field(alias="keyvault", default=None)

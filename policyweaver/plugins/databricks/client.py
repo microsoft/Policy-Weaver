@@ -5,13 +5,13 @@ from pydantic.json import pydantic_encoder
 
 from typing import List, Tuple
 from policyweaver.models.export import (
-    CatalogItem, PolicyExport, Policy, Permission, PermissionObject, RolePolicy, RolePolicyExport, PermissionScope
+    CatalogItem, PolicyExport, Policy, Permission, PermissionObject, RolePolicy, RolePolicyExport, PermissionScope, ColumnConstraint
 )
 from policyweaver.plugins.databricks.model import (
-    Privilege, PrivilegeItem, PrivilegeSnapshot, DependencyMap, DatabricksSourceMap
+    Privilege, PrivilegeItem, PrivilegeSnapshot, DependencyMap, DatabricksSourceMap, TableObject
 )
 from policyweaver.core.enum import (
-    IamType, PermissionType, PermissionState, PolicyWeaverConnectorType
+    IamType, PermissionType, PermissionState, PolicyWeaverConnectorType, ColumnMaskType
 )
 
 from policyweaver.core.utility import Utils
@@ -266,9 +266,37 @@ class DatabricksPolicyWeaver(PolicyWeaverCore):
         return privilege_snapshot
     
 
+    def __build_special_grants__(self) -> List[TableObject]:
+
+        mps = self.workspace.catalog.column_masks
+
+        special_grants = []
+
+        for masking_policy in mps:
+            if masking_policy.mask_type == ColumnMaskType.UNSUPPORTED:
+                continue
+            key = self.__get_three_part_key__(catalog=masking_policy.catalog_name,
+                                              schema=masking_policy.schema_name,
+                                              table=masking_policy.table_name)
+            if self.__has_read_permissions__(masking_policy.group_name, key):
+                to = TableObject(catalog_name=masking_policy.catalog_name,
+                    schema_name=masking_policy.schema_name,
+                    table_name=masking_policy.table_name,
+                    privileges=[Privilege(principal=masking_policy.group_name, privileges=["SELECT"])]
+                )
+                special_grants.append(to)
+
+        return special_grants
+
+
+
+    
+
     def __get_all_read_permissions__(self) -> List[PrivilegeItem]:
 
         permissions = []
+
+        special_table_privileges = self.__build_special_grants__()
 
         if self.workspace.catalog.privileges:
             catalog_permissions = self.__get_read_permissions__(self.workspace.catalog.privileges, self.workspace.catalog.name)
@@ -283,12 +311,28 @@ class DatabricksPolicyWeaver(PolicyWeaverCore):
                     permissions.append(PrivilegeItem(catalog=self.workspace.catalog.name, catalog_schema=schema.name, table=None,
                                                       role=sp[0], type="schema", permission="read", grant=sp[1]))
 
+            stp_for_schema = [stp for stp in special_table_privileges if stp.catalog_name == self.workspace.catalog.name and stp.schema_name == schema.name]
+                    
+
             for tbl in schema.tables:
+
+                table_permissions = []
                 if tbl.privileges:
                     table_permissions = self.__get_read_permissions__(tbl.privileges, self.workspace.catalog.name, schema.name, tbl.name)
-                    for tp in table_permissions:
-                        permissions.append(PrivilegeItem(catalog=self.workspace.catalog.name, catalog_schema=schema.name, table=tbl.name,
-                                                          role=tp[0], type="table", permission="read", grant=tp[1]))
+                for tp in table_permissions:
+                    permissions.append(PrivilegeItem(catalog=self.workspace.catalog.name, catalog_schema=schema.name, table=tbl.name,
+                                                        role=tp[0], type="table", permission="read", grant=tp[1]))
+                        
+                stp_for_table = [stp for stp in stp_for_schema if stp.table_name == tbl.name]
+
+                for stp in stp_for_table:
+                    for sp in stp.privileges:
+                        matches = [tp for tp in table_permissions if tp[0] == sp.principal]
+                        if matches and matches[0][1] == "direct":
+                            continue
+                        else:
+                            permissions.append(PrivilegeItem(catalog=stp.catalog_name, catalog_schema=stp.schema_name, table=stp.table_name,
+                                                            role=sp.principal, type="table", permission="read", grant="direct"))
 
         return permissions
 
@@ -317,14 +361,48 @@ class DatabricksPolicyWeaver(PolicyWeaverCore):
         policies = []
 
         permissions = self.__get_all_read_permissions__()
+        if not(self.config.constraints and self.config.constraints.columns and self.config.constraints.columns.columnlevelsecurity):
+            self.logger.warning("Column level security is not enabled in the config.")
+            column_security = False
+        else:
+            self.logger.info("Column level security is enabled in the config.")
+            column_security = True
         for principal, snapshot in self.snapshot.items():
-            policy = self.__build_role_policy(principal, snapshot.type, permissions)
+            policy = self.__build_role_policy(principal, snapshot.type, permissions, column_security=column_security)
             if policy:
                 policies.append(policy)
 
         return policies
+    
+    def __get_permission_scopes__(self, cat_item:CatalogItem) -> PermissionScope:
 
-    def __build_role_policy(self, principal:str, iam_type:IamType, permissions:List[PrivilegeItem]) -> RolePolicy:
+        if cat_item.catalog and not cat_item.catalog_schema and not cat_item.table:
+            ps = []
+            for schema in self.workspace.catalog.schemas:
+                inherited_cat_item = CatalogItem(catalog=cat_item.catalog, catalog_schema=schema.name, table=None)
+                ps_schema = self.__get_permission_scopes__(inherited_cat_item)
+                ps.extend(ps_schema)
+            return ps
+
+        if cat_item.catalog and cat_item.catalog_schema and not cat_item.table:
+            ps = []
+            s = [s for s in self.workspace.catalog.schemas if s.name == cat_item.catalog_schema][0]
+            for table in [t  for t in s.tables]:
+                inherited_cat_item = CatalogItem(catalog=cat_item.catalog, catalog_schema=cat_item.catalog_schema, table=table.name)
+                ps_table = self.__get_permission_scopes__(inherited_cat_item)
+                ps.extend(ps_table)
+            return ps
+
+        ps = PermissionScope()
+        ps.catalog = cat_item.catalog
+        ps.catalog_schema = cat_item.catalog_schema
+        ps.table = cat_item.table
+        ps.name = PermissionType.SELECT
+        ps.state = PermissionState.GRANT
+
+        return [ps]
+
+    def __build_role_policy(self, principal:str, iam_type:IamType, permissions:List[PrivilegeItem], column_security:bool) -> RolePolicy:
         """
         Builds a RolePolicy object from the provided principal and iam_type and catalog items.
         Args:
@@ -338,17 +416,61 @@ class DatabricksPolicyWeaver(PolicyWeaverCore):
         if not cat_items:
             return None
         permission_scopes = []
-
+        columnconstraints = []
         
         for cat_item in cat_items:
-            ps = PermissionScope()
-            ps.catalog = cat_item.catalog
-            ps.catalog_schema = cat_item.catalog_schema
-            ps.table = cat_item.table
-            ps.name = PermissionType.SELECT
-            ps.state = PermissionState.GRANT
 
-            permission_scopes.append(ps)
+            ps = self.__get_permission_scopes__(cat_item)
+            permission_scopes.extend(ps)
+
+            matching_mask_policies = [mp for mp in self.workspace.catalog.column_masks
+                                      if mp.catalog_name == cat_item.catalog and
+                                         (mp.schema_name == cat_item.catalog_schema or cat_item.catalog_schema is None) and
+                                         (mp.table_name == cat_item.table or cat_item.table is None)]
+            if not matching_mask_policies:
+                continue
+
+            if not column_security:
+                continue
+
+            table_objects = [(mp.catalog_name, mp.schema_name, mp.table_name) for mp in matching_mask_policies]
+            table_objects = list(set(table_objects))
+
+            role_assignments = self.snapshot[principal].group_membership
+            role_assignments = [principal] + role_assignments
+
+            for (catalog, schema, table) in table_objects:
+                table_w_mask = [t for t in self.workspace.catalog.tables_with_masks if t.catalog_name == catalog and
+                                                        t.schema_name == schema and
+                                                        t.table_name == table][0]
+                matching_mask_policies_per_table = [mp for mp in matching_mask_policies if mp.catalog_name == catalog and
+                                                    mp.schema_name == schema and
+                                                    mp.table_name == table]                
+                all_columns = table_w_mask.columns
+                columns_to_deny = []
+                for mp in matching_mask_policies_per_table:
+                    if mp.mask_type == ColumnMaskType.UNSUPPORTED:
+                        self.logger.warning(f"Unsupported column mask type for masking policy {mp.name} on {mp.catalog_name}.{mp.schema_name}.{mp.table_name}.{mp.column_name}.")
+                        self.logger.warning(f"Using fallback: {self.config.constraints.columns.fallback}")
+                        if self.config.constraints.columns.fallback != "grant":
+                            columns_to_deny.append(mp.column_name)
+                    elif mp.mask_type == ColumnMaskType.UNMASK_FOR_GROUP:
+                        if not any([role for role in role_assignments if role == mp.group_name]):
+                            columns_to_deny.append(mp.column_name)
+                    elif mp.mask_type == ColumnMaskType.MASK_FOR_GROUP:
+                        if any([role for role in role_assignments if role == mp.group_name]):
+                            columns_to_deny.append(mp.column_name)
+                            
+                filtered_columns = [col for col in all_columns if col not in columns_to_deny]
+                if len(filtered_columns) == len(all_columns):
+                    continue        
+                constraint = ColumnConstraint(catalog_name=mp.catalog_name,
+                                                schema_name=mp.schema_name,
+                                                table_name=mp.table_name,
+                                                column_names=filtered_columns,
+                                                column_effect=PermissionState.GRANT,
+                                                column_actions=[PermissionType.SELECT])
+                columnconstraints.append(constraint)
 
         members = []
 
@@ -408,6 +530,7 @@ class DatabricksPolicyWeaver(PolicyWeaverCore):
             permissionobjects=permissionobjects,
             permissionscopes=permission_scopes,
             name=principal,
+            columnconstraints=columnconstraints if columnconstraints else None
         )
 
 
@@ -645,8 +768,8 @@ class DatabricksPolicyWeaver(PolicyWeaverCore):
                 return True
 
         return False
-    
-    def __get_read_permissions__(self, privileges:List[Privilege], catalog:str, schema:str=None, table:str=None) -> List[str]:
+
+    def __get_read_permissions__(self, privileges:List[Privilege], catalog:str, schema:str=None, table:str=None) -> List[Tuple[str, str]]:
         """
         Retrieves the read permissions for a given catalog, schema, and table.
         This method checks the privileges for each principal and returns a list of user or service principal identifiers
