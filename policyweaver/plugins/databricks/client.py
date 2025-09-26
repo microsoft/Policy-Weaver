@@ -402,6 +402,14 @@ class DatabricksPolicyWeaver(PolicyWeaverCore):
 
         return [ps]
 
+    def __fix_spn_name__(self, sp_name:str) -> Tuple[bool, str]:
+        overlap = [group.name for group in self.workspace.groups if group.name == sp_name]
+        if overlap:
+            sp_name = f"SPN{sp_name}"
+            return True, sp_name
+        return False, sp_name
+
+
     def __build_role_policy(self, principal:str, iam_type:IamType, permissions:List[PrivilegeItem], column_security:bool) -> RolePolicy:
         """
         Builds a RolePolicy object from the provided principal and iam_type and catalog items.
@@ -474,20 +482,29 @@ class DatabricksPolicyWeaver(PolicyWeaverCore):
 
         members = []
 
+        role_name = principal
         if iam_type == IamType.GROUP:
             for group in self.workspace.groups:
                 if group.name == principal:
                     members = [member.id for member in group.members]
+                    role_name = group.name
                     break
         elif iam_type == IamType.USER:
             for u in self.workspace.users:
                 if u.email == principal:
                     members = [u.id]
+                    role_name = u.email
                     break
         elif iam_type == IamType.SERVICE_PRINCIPAL:
             for s in self.workspace.service_principals:
                 if s.application_id == principal:
                     members = [s.id]
+
+                    adjusted, sp_name = self.__fix_spn_name__(s.name)
+                    while adjusted:
+                        adjusted, sp_name = self.__fix_spn_name__(sp_name)
+                    
+                    role_name = sp_name
                     break
 
         permissionobjects = []
@@ -529,7 +546,7 @@ class DatabricksPolicyWeaver(PolicyWeaverCore):
         policy = RolePolicy(
             permissionobjects=permissionobjects,
             permissionscopes=permission_scopes,
-            name=principal,
+            name=role_name,
             columnconstraints=columnconstraints if columnconstraints else None
         )
 
