@@ -180,7 +180,7 @@ https://github.com/user-attachments/assets/4de93aa3-e6c2-4c5b-b220-b30f6bfafd2f
 
 ## :books: Config File values
 
-Here ´s how the config.yaml should be adjusted to your environment. For details on CLS look here:  [Column Level Security](#books-column-level-security))
+Here ´s how the config.yaml should be adjusted to your environment.
 
 - keyvault:
   - use_key_vault: true/false (true if you want to use keyvault to store secrets, false if you want to store secrets directly in the config file)
@@ -318,7 +318,7 @@ Supported column mask policies:
 
 If for a specific role all columns of a table are denied, the whole table is denied to this role and will not show up in the Fabric for this role.
 
-:raising_hand: Contributing
+## :raising_hand: Contributing
 
 This project welcomes contributions and suggestions.  Most contributions require you to agree to a
 Contributor License Agreement (CLA) declaring that you have the right to, and actually do, grant us
