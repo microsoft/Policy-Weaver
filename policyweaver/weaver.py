@@ -135,6 +135,7 @@ class WeaverAgent:
         self._fabric_snapshot_handler = None
         self._unmapped_policy_handler = None
         self.__graph_map = dict()
+        self.used_role_names = []
 
     async def apply(self, policy_export: PolicyExport) -> None:
         """
@@ -473,7 +474,7 @@ class WeaverAgent:
             role_description = policy.catalog.replace(" ", "")
 
 
-        role_name = f"{self.config.fabric.fabric_role_prefix}{role_description.title()}{self.config.fabric.fabric_role_suffix}"
+        role_name = f"{role_description.title()}{self.config.fabric.fabric_role_suffix}"
         # replace all signs
         role_name = role_name.replace("-", "").replace("_", "").replace(" ", "").replace(".", "")
         role_name = role_name.replace("@", "").replace("'", "").replace("`", "").replace("!", "")
@@ -599,12 +600,27 @@ class WeaverAgent:
             DataAccessPolicy: The constructed Data Access Policy object.
         """
 
-        role_name = f"{self.config.fabric.fabric_role_prefix}{policy.name}{self.config.fabric.fabric_role_suffix}"
+        len_suffix = len(self.config.fabric.fabric_role_suffix)
+
+        role_name = f"{policy.name}{self.config.fabric.fabric_role_suffix}"
         # replace all signs
         role_name = role_name.replace("-", "").replace("_", "").replace(" ", "").replace(".", "")
         role_name = role_name.replace("@", "").replace("'", "").replace("`", "").replace("!", "")
         # replace all non alphanumeric signs
         role_name = re.sub(r'\W+', '', role_name)
+
+        if role_name[0] in [str(i) for i in range(10)]:
+            role_name = f"ID{role_name}"
+
+        if role_name in self.used_role_names:
+            suffix = 1
+            new_role_name = role_name[:-len_suffix] + str(suffix) + self.config.fabric.fabric_role_suffix
+            while new_role_name in self.used_role_names:
+                suffix += 1
+                new_role_name = role_name[:-len_suffix] + str(suffix) + self.config.fabric.fabric_role_suffix
+            role_name = new_role_name
+
+        self.used_role_names.append(role_name)
 
         table_paths = []
         for permission_scope in policy.permissionscopes:

@@ -81,7 +81,6 @@ class FabricConfig(CommonBaseModel):
     mirror_id: Optional[str] = Field(alias="mirror_id", default=None)
     mirror_name: Optional[str] = Field(alias="mirror_name", default=None)
     fabric_role_suffix: Optional[str] = Field(alias="fabric_role_suffix", default="PWPolicy")
-    fabric_role_prefix: Optional[str] = Field(alias="fabric_role_prefix", default="PWPolicy")
     delete_default_reader_role: Optional[bool] = Field(alias="delete_default_reader_role", default=False)
     policy_mapping: Optional[str] = Field(alias="policy_mapping", default="table_based")
 

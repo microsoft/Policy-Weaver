@@ -35,7 +35,17 @@ A Python-based accelerator designed to automate the synchronization of security 
 - **Pluggable Framework**: Supports Azure Databricks and Snowflake policies, with more connectors planned.
 - **Secure**: Can use Azure Key Vault to securely manage sensitive information like Service Principal credentials and API tokens.
 
-> :pushpin: **Note:** Row-level and column-level security extraction will be implemented in the next version, once these features become available in OneLake Security.
+> :pushpin: **Note:** Row-level security extraction will be implemented in the next versions.
+
+
+## Table of Contents
+- [Installation](#hammer_and_wrench-installation)
+- [Getting Started](#rocket-getting-started)
+  - [General Prerequisites](#clipboard-general-prerequisites)
+  - [Databricks specific setup](#thread-databricks-specific-setup)
+  - [Snowflake specific setup](#thread-snowflake-specific-setup)
+- [Config File values](#books-config-file-values)
+- [Column Level Security](#books-column-level-security)
 
 
 ## :hammer_and_wrench: Installation
@@ -170,7 +180,7 @@ https://github.com/user-attachments/assets/4de93aa3-e6c2-4c5b-b220-b30f6bfafd2f
 
 ## :books: Config File values
 
-Here ´s how the config.yaml should be adjusted to your environment:
+Here ´s how the config.yaml should be adjusted to your environment. For details on CLS look here:  [Column Level Security](#books-column-level-security))
 
 - keyvault:
   - use_key_vault: true/false (true if you want to use keyvault to store secrets, false if you want to store secrets directly in the config file)
@@ -183,11 +193,10 @@ Here ´s how the config.yaml should be adjusted to your environment:
     - workspace_id: your fabric workspace id (you can find it in the URL when you are in the Fabric workspace)
     - tenant_id: your fabric tenant id (you can find it in the URL "help" -> "about Fabric" section of the Fabric UI)
     - fabric_role_suffix: suffix for the fabric roles created by Policy Weaver (default: PW)
-    - fabric_role_prefix: prefix for the fabric roles created by Policy Weaver (default: PW)
     - delete_default_reader_role: true/false (if true, the DefaultReader role created by Fabric will be deleted, if false it will be kept, default: true)
     - policy_mapping: table_based / role_based (table_based: create one role per table, role_based: create one role per role/group, default: table_based)
 - constraints:
-    - columns: (optional, if not set, no column level security will be applied, see below for details)
+    - columns: (optional, if not set, no column level security will be applied, see below for details [Column Level Security](#books-column-level-security))
       - columnlevelsecurity: true/false (if true, column level security will be applied at best effort. Default: false)
       - fallback: grant/deny (if a not supported column mask is found, the fallback will be applied. Default: deny)
 
@@ -215,7 +224,6 @@ fabric:
   workspace_id: 9d556498489465asdf7c
   tenant_id: 3494545asdfs7e2885
   fabric_role_suffix: PW
-  fabric_role_prefix: PW
   delete_default_reader_role: true
   policy_mapping: role_based
 constraints:
@@ -260,7 +268,6 @@ fabric:
   workspace_id: 9d556498489465asdf7c
   tenant_id: 3494545asdfs7e2885
   fabric_role_suffix: PW
-  fabric_role_prefix: PW
   delete_default_reader_role: true
   policy_mapping: role_based
 constraints:
