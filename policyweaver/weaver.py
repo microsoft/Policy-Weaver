@@ -474,7 +474,7 @@ class WeaverAgent:
             role_description = policy.catalog.replace(" ", "")
 
 
-        role_name = f"{role_description.title()}{self.config.fabric.fabric_role_suffix}"
+        role_name = f"{role_description.title()}{self.FabricPolicyRoleSuffix}"
         # replace all signs
         role_name = role_name.replace("-", "").replace("_", "").replace(" ", "").replace(".", "")
         role_name = role_name.replace("@", "").replace("'", "").replace("`", "").replace("!", "")
@@ -600,9 +600,9 @@ class WeaverAgent:
             DataAccessPolicy: The constructed Data Access Policy object.
         """
 
-        len_suffix = len(self.config.fabric.fabric_role_suffix)
+        len_suffix = len(self.FabricPolicyRoleSuffix)
 
-        role_name = f"{policy.name}{self.config.fabric.fabric_role_suffix}"
+        role_name = f"{policy.name}{self.FabricPolicyRoleSuffix}"
         # replace all signs
         role_name = role_name.replace("-", "").replace("_", "").replace(" ", "").replace(".", "")
         role_name = role_name.replace("@", "").replace("'", "").replace("`", "").replace("!", "")
@@ -614,10 +614,10 @@ class WeaverAgent:
 
         if role_name in self.used_role_names:
             suffix = 1
-            new_role_name = role_name[:-len_suffix] + str(suffix) + self.config.fabric.fabric_role_suffix
+            new_role_name = role_name[:-len_suffix] + str(suffix) + self.FabricPolicyRoleSuffix
             while new_role_name in self.used_role_names:
                 suffix += 1
-                new_role_name = role_name[:-len_suffix] + str(suffix) + self.config.fabric.fabric_role_suffix
+                new_role_name = role_name[:-len_suffix] + str(suffix) + self.FabricPolicyRoleSuffix
             role_name = new_role_name
 
         self.used_role_names.append(role_name)
