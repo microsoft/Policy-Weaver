@@ -137,6 +137,12 @@ class FunctionMap(BaseObject):
     """
     columns: Optional[List[str]] = Field(alias="column", default=None)
 
+class RowFilterFunctionInfo(CommonBaseModel):
+    fullname: Optional[str] = Field(alias="fullname", default=None)
+    name: Optional[str] = Field(alias="name", default=None)
+    full_data_type: Optional[str] = Field(alias="full_data_type", default=None)
+    routine_definition: Optional[str] = Field(alias="routine_definition", default=None)
+
 class ColumnMaskExtraction(CommonBaseModel):
     """
     Represents the extraction of a column mask from a SQL definition.
@@ -233,6 +239,7 @@ class Catalog(PrivilegedObject):
     schemas: Optional[List[Schema]] = Field(alias="schemas", default=None)
     column_masks: Optional[List[DatabricksColumnMask]] = Field(alias="column_masks", default=None)
     tables_with_masks: Optional[List[TableObject]] = Field(alias="tables_with_masks", default=None)
+    row_filters: Optional[List[RowFilterFunctionInfo]] = Field(alias="row_filters", default=None)
 
 class DatabricksUser(BaseObject):
     """

@@ -17,7 +17,7 @@ from policyweaver.models.config import (
 )
 from policyweaver.plugins.databricks.model import (
     DatabricksColumnMask, ColumnMaskExtraction, DatabricksUser, DatabricksServicePrincipal, DatabricksGroup,
-    DatabricksGroupMember, Account, TableObject, Workspace, Catalog, Schema, Table,
+    DatabricksGroupMember, Account, RowFilterFunctionInfo, TableObject, Workspace, Catalog, Schema, Table,
     Function, FunctionMap, Privilege
 )
 from policyweaver.core.enum import (
@@ -53,6 +53,8 @@ class DatabricksAPIClient:
                                                 azure_tenant_id=ServicePrincipal.TenantId,
                                                 azure_client_id=ServicePrincipal.ClientId,
                                                 azure_client_secret=ServicePrincipal.ClientSecret)
+        
+        self.row_filter_func_maps = []
 
     def __get_account(self) -> Account:
         """
@@ -188,6 +190,27 @@ class DatabricksAPIClient:
 
         self.logger.debug(f"DBX ACCOUNT Groups: {json.dumps(groups, default=pydantic_encoder, indent=4)}")
         return groups
+    
+    def __get_functions__(self) -> List[RowFilterFunctionInfo]:
+        """
+        Retrieves the list of functions in the workspace.
+        Returns:
+            List[Function]: A list of Function objects representing the functions in the workspace.
+        """
+        row_filters = []
+        for row_filter_func_map in self.row_filter_func_maps:
+            func = self.workspace_client.functions.get(row_filter_func_map.name)
+            rf = RowFilterFunctionInfo(
+                fullname=func.full_name,
+                name=func.name,
+                full_data_type=func.full_data_type,
+                routine_definition=func.routine_definition
+            )
+            row_filters.append(rf)
+
+        return row_filters
+
+
 
     def get_workspace_policy_map(self, source: Source) -> tuple[Account, Workspace]:
         """
@@ -211,9 +234,13 @@ class DatabricksAPIClient:
                 service_principals=self.__account.service_principals
             )
 
-            self.__workspace.catalog = Catalog(name=api_catalog.name, column_masks=[], tables_with_masks=[])
+            self.__workspace.catalog = Catalog(name=api_catalog.name,
+                                               column_masks=[], tables_with_masks=[],
+                                               row_filters=[])
             self.__workspace.catalog.schemas = self.__get_catalog_schemas__(api_catalog.name, source.schemas)
             self.__workspace.catalog.privileges = self.__get_privileges__(SecurableType.CATALOG.value, api_catalog.name)
+
+            self.__workspace.catalog.row_filters = self.__get_functions__()
 
             self.logger.debug(f"DBX WORKSPACE Policy Map for {api_catalog.name}: {json.dumps(self.__workspace, default=pydantic_encoder, indent=4)}")
             return (self.__account, self.__workspace)
@@ -502,14 +529,15 @@ class DatabricksAPIClient:
                                                                               table_name=t.name,
                                                                               columns=[c.name for c in t.columns]))
 
-            t_ = Table(
-                        name=t.name,
-                        row_filter=None
-                        if not t.row_filter
-                        else FunctionMap(
+            row_filter = None if not t.row_filter else FunctionMap(
                             name=t.row_filter.function_name,
                             columns=t.row_filter.input_column_names,
-                        ),
+                        )
+            if row_filter:
+                self.row_filter_func_maps.append(row_filter)
+            t_ = Table(
+                        name=t.name,
+                        row_filter=row_filter,
                         column_masks=cms,
                         privileges=self.__get_privileges__(SecurableType.TABLE.value, t.full_name),
                     )
