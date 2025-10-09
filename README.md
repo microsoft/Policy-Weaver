@@ -46,6 +46,7 @@ A Python-based accelerator designed to automate the synchronization of security 
   - [Snowflake specific setup](#thread-snowflake-specific-setup)
 - [Config File values](#books-config-file-values)
 - [Column Level Security](#books-column-level-security)
+- [Feedback](#raising_hand-feedback)
 
 
 ## :hammer_and_wrench: Installation
@@ -57,6 +58,7 @@ $ pip install policy-weaver
 # :rocket: Getting Started
 
 Follow the General Prerequisites and Installation steps below [here](#clipboard-general-prerequisites). Then, depending on your source catalog, follow the specific setup instructions for either [Databricks](#thread-databricks-specific-setup) or [Snowflake](#thread-snowflake-specific-setup).
+If you run into any issues, wish for new features or let us know that you like the accelerator, let us know via our feedback form [https://aka.ms/pwfeedback](https://aka.ms/pwfeedback)
 
 ## :clipboard: General Prerequisites
 Before installing and running this solution, ensure you have:
@@ -317,6 +319,10 @@ Supported column mask policies:
   - Allow everyone except a specific role to see the real value.  I.e. the function looks like `CASE WHEN CURRENT_ROLE() IN ('HR_ROLE') THEN '<arbitrary_value>' ELSE ssn END`
 
 If for a specific role all columns of a table are denied, the whole table is denied to this role and will not show up in the Fabric for this role.
+
+## :raising_hand: Feedback
+
+If you run into any issues, wish for new features or let us know that you like the accelerator, let us know via our feedback form [https://aka.ms/pwfeedback](https://aka.ms/pwfeedback)
 
 ## :raising_hand: Contributing
 
