@@ -19,6 +19,9 @@
 <a href="https://badgen.net/pypi/v/Policy-Weaver" target="_blank">
     <img src="https://badgen.net/pypi/v/Policy-Weaver" alt="Package version">
 </a>
+  <a href="https://badgen.net/pypi/dm/policy-weaver" target="_blank">
+    <img src="https://badgen.net/pypi/dm/policy-weaver" alt="Monthly Downloads">
+</a>
 </p>
 
 ---
