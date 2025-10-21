@@ -68,7 +68,7 @@ Before installing and running this solution, ensure you have:
 - **Azure [Service Principal](https://learn.microsoft.com/en-us/entra/identity-platform/howto-create-service-principal-portal)** with the following [Microsoft Graph API permissions](https://learn.microsoft.com/en-us/graph/permissions-reference) (*This is not mandatory in every case but recommended, please check the specific source catalog requirements and limitations*):
   - `User.Read.All` as application permissions
 - [A client secret](https://learn.microsoft.com/en-us/entra/identity-platform/howto-create-service-principal-portal#option-3-create-a-new-client-secret) for the Service Principal
-- Added the Service Principal as [Contributor](https://learn.microsoft.com/en-us/fabric/fundamentals/give-access-workspaces) on the Fabric Workspace containing the mirrored database/catalog.
+- Added the Service Principal as [Admin](https://learn.microsoft.com/en-us/fabric/fundamentals/give-access-workspaces) on the Fabric Workspace containing the mirrored database/catalog.
 - The Service Principal needs to be able to call public Fabric REST APIs. This is configured in the tenant settings via the following setting [service-principals-can-call-fabric-public-apis]( https://learn.microsoft.com/en-us/fabric/admin/service-admin-portal-developer#service-principals-can-call-fabric-public-apis)
 
 > :pushpin: **Note:** Every source catalog has additional pre-requisites
