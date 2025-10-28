@@ -10,7 +10,7 @@ class RestAPIProxy:
         base_url (str): The base URL of the REST API.
         headers (dict): Default headers to be used in API requests.
     """
-    def __init__(self, base_url, headers=None):
+    def __init__(self, base_url, headers=None, weaver_type=None):
         """
         Initializes the RestAPIProxy with a base URL and optional headers.
         Args:
@@ -23,6 +23,7 @@ class RestAPIProxy:
         self.logger = logging.getLogger("POLICY_WEAVER")
         self.base_url = base_url
         self.headers = headers
+        self.weaver_type = weaver_type if weaver_type else "UNKNOWN"
 
     def get(self, endpoint, params=None, headers=None):
         """
@@ -82,6 +83,8 @@ class RestAPIProxy:
             Response object: The response from the PUT request."""
         if not headers:
             headers = self.headers
+
+        headers["policyweaver"] = self.weaver_type
 
         self.logger.debug(f"REST API PROXY - PUT - {self.base_url}/{endpoint} - HEADERS {headers} - DATA - {data} - JSON - {json}") 
         response = requests.put(
