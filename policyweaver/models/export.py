@@ -114,6 +114,20 @@ class ColumnConstraint(CommonBaseModel):
     schema_name: Optional[str] = Field(alias="schema_name", default=None)
     catalog_name: Optional[str] = Field(alias="catalog_name", default=None)
 
+class RowConstraint(CommonBaseModel):
+    """
+    Represents a row-level constraint in the Policy Weaver application.
+    Attributes:
+        filter_condition (str): The condition used to filter rows.
+        table_name (str): The name of the table associated with the constraint.
+        schema_name (str): The schema of the table.
+        catalog_name (str): The catalog of the table.
+    """
+    filter_condition: Optional[str] = Field(alias="filter_condition", default=None)
+    table_name: Optional[str] = Field(alias="table_name", default=None)
+    schema_name: Optional[str] = Field(alias="schema_name", default=None)
+    catalog_name: Optional[str] = Field(alias="catalog_name", default=None)
+
 class RolePolicy(CommonBaseModel):
     """
     Represents a policy in the Policy Weaver application.
@@ -127,6 +141,7 @@ class RolePolicy(CommonBaseModel):
     permissionobjects: Optional[List[PermissionObject]] = Field(alias="permissionobjects", default=None)
     permissionscopes: Optional[List[PermissionScope]] = Field(alias="permissionscopes", default=None)
     columnconstraints: Optional[List[ColumnConstraint]] = Field(alias="columnconstraints", default=None)
+    rowconstraints: Optional[List[RowConstraint]] = Field(alias="rowconstraints", default=None)
     name: Optional[str] = Field(alias="name", default=None)
 
 class RolePolicyExport(CommonBaseModel):

@@ -25,7 +25,8 @@ from policyweaver.models.fabric import (
     FabricMemberObjectType,
     FabricPolicyAccessType,
     ColumnConstraint,
-    Constraints
+    Constraints,
+    RowConstraint
 )
 from policyweaver.models.export import PolicyExport, RolePolicyExport, RolePolicy, PermissionObject
 from policyweaver.models.config import SourceMap
@@ -587,6 +588,16 @@ class WeaverAgent:
 
             return self.__graph_map[object.lookup_id]
 
+    @staticmethod
+    def __generate_rls_value__(schema_name:str, table_name:str, filter_condition:str) -> str:
+
+        start = f"SELECT * FROM {schema_name}.{table_name}"
+        if filter_condition == "true":
+            return False
+        else:
+            return f"{start} WHERE {filter_condition}"
+
+
     async def __build_data_access_role_policy__(self, policy:RolePolicy, access_policy_type:FabricPolicyAccessType) -> DataAccessPolicy:
         """
         Build a Data Access Policy based on the provided policy and permission.
@@ -632,6 +643,7 @@ class WeaverAgent:
                     table_paths.append(table_path)
         
         columnconstraints = []
+        rowconstraints = []
         tables_with_all_columns_denied = []
 
         if policy.columnconstraints and self.config.constraints and self.config.constraints.columns and self.config.constraints.columns.columnlevelsecurity:
@@ -649,7 +661,24 @@ class WeaverAgent:
                                                             column_names=column_names,
                                                             column_effect=PolicyEffectType.PERMIT,
                                                             column_action=[FabricPolicyAccessType.READ]))
-                    
+
+        if policy.rowconstraints and self.config.constraints and self.config.constraints.rows and self.config.constraints.rows.rowlevelsecurity:
+            for rc in policy.rowconstraints:
+                value = self.__generate_rls_value__(
+                    schema_name=rc.schema_name,
+                    table_name=rc.table_name,
+                    filter_condition=rc.filter_condition
+                )
+                if not value:
+                    continue
+                table_path = self.__get_table_mapping__(rc.catalog_name, rc.schema_name, rc.table_name)
+                if table_path and table_path != "*":
+                    table_path = f"/{table_path}"
+                rowconstraints.append(RowConstraint(
+                                            table_path=table_path,
+                                            value=value))
+
+
         # Remove all tablepaths that have all columns denied
         table_paths = [tp for tp in table_paths if tp not in tables_with_all_columns_denied]
 
@@ -674,8 +703,12 @@ class WeaverAgent:
                     permission=permission_scopes,
                 )
         
-        if columnconstraints:
-            constraints = Constraints(columns=columnconstraints)
+        if columnconstraints or rowconstraints:
+            constraints = Constraints()
+            if columnconstraints:
+                constraints.columns = columnconstraints
+            if rowconstraints:
+                constraints.rows = rowconstraints
             pdr.constraints = constraints
 
         dap = DataAccessPolicy(

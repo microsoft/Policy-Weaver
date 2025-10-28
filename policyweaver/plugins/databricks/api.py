@@ -16,12 +16,12 @@ from policyweaver.models.config import (
     SourceSchema, Source
 )
 from policyweaver.plugins.databricks.model import (
-    DatabricksColumnMask, ColumnMaskExtraction, DatabricksUser, DatabricksServicePrincipal, DatabricksGroup,
+    DatabricksColumnMask, DatabricksRowFilter, ColumnMaskExtraction, RowFilterDetails, DatabricksUser, DatabricksServicePrincipal, DatabricksGroup,
     DatabricksGroupMember, Account, RowFilterFunctionInfo, TableObject, Workspace, Catalog, Schema, Table,
     Function, FunctionMap, Privilege
 )
 from policyweaver.core.enum import (
-    ColumnMaskType,
+    ColumnMaskType, RowFilterType,
     IamType
 )
 
@@ -236,11 +236,11 @@ class DatabricksAPIClient:
 
             self.__workspace.catalog = Catalog(name=api_catalog.name,
                                                column_masks=[], tables_with_masks=[],
-                                               row_filters=[])
+                                               row_filters=[], tables_with_rls=[])
             self.__workspace.catalog.schemas = self.__get_catalog_schemas__(api_catalog.name, source.schemas)
             self.__workspace.catalog.privileges = self.__get_privileges__(SecurableType.CATALOG.value, api_catalog.name)
 
-            self.__workspace.catalog.row_filters = self.__get_functions__()
+            #self.__workspace.catalog.row_filters = self.__get_functions__()
 
             self.logger.debug(f"DBX WORKSPACE Policy Map for {api_catalog.name}: {json.dumps(self.__workspace, default=pydantic_encoder, indent=4)}")
             return (self.__account, self.__workspace)
@@ -473,6 +473,56 @@ class DatabricksAPIClient:
         
         return result
 
+    def __extract_logic_from_row_filter__(self, sql_definition: str, input_columns: List[str]) -> ColumnMaskExtraction:
+        """
+        Extracts the group name and mask pattern from a column mask function definition.
+        
+        Args:
+            sql_definition (str): The SQL definition containing is_account_group_member function
+            input_columns (List[str]): The list of input columns for the row filter
+
+        Returns:
+            ColumnMaskExtraction: An object containing the extracted group name and mask pattern
+        """
+        # result = None
+
+        # definition = sql_definition.replace("\n", " ").replace("\r", " ").replace(" ", "")
+        # if not (definition[:8] == "CASEWHEN" and definition[8:31] == "is_account_group_member"):
+        #     self.logger.warning("Unexpected format: does not start with 'CASE WHEN is_account_group_member'")
+        #     return result
+        # group_name = definition[32:].split(")")[0].replace("'", "").replace('"', '')
+        # Returns:
+        #     dict: Dictionary containing 'group_name' and 'mask_pattern', or None values if not found
+        
+        result = RowFilterDetails(row_filter=RowFilterType.UNSUPPORTED)
+        definition = sql_definition.replace("\n", " ").replace("\r", " ").replace(" ", "") 
+        if not definition.startswith("IF(IS_ACCOUNT_GROUP_MEMBER("):
+            self.logger.warning("Unexpected format: does not start with 'IF(IS_ACCOUNT_GROUP_MEMBER('")
+            return result
+        group_name = definition[27:].split("'")[1]
+        start = f"IF(IS_ACCOUNT_GROUP_MEMBER('{group_name}'),"
+        if not definition.startswith(start):
+            self.logger.warning("Unexpected format: does not match expected start")
+            return result
+        condition_for_group, condition_for_others = definition[len(start):].split(",")
+        condition_for_group = condition_for_group.strip()
+        condition_for_others = condition_for_others.strip()
+        if condition_for_others.endswith(")"):
+            condition_for_others = condition_for_others[:-1].strip()
+        else:
+            self.logger.warning("Unexpected format: does not match expected start")
+            return result        
+
+        result = RowFilterDetails(
+            group_name=group_name,
+            condition_for_group=condition_for_group,
+            condition_for_others=condition_for_others,
+            row_filter_type=RowFilterType.EXPLICIT_GROUP_MEMBERSHIP
+        )
+
+        
+        return result
+    
     def __get_column_mask__(self, catalog_name: str, schema_name: str, table_name: str, column_name: str, func_map: FunctionMap) -> DatabricksColumnMask:
         """Retrieves the column mask for a given function map.
         Args:
@@ -494,6 +544,28 @@ class DatabricksAPIClient:
             col_mask.mask_pattern = extraction.mask_pattern
             col_mask.mask_type = extraction.column_mask_type
         return col_mask
+
+    def __get_row_filter__(self, catalog_name: str, schema_name: str, table_name: str, func_map: FunctionMap) -> DatabricksRowFilter:
+        """Retrieves the row filter for a given table.
+        Args:
+            catalog_name (str): The name of the catalog.
+            schema_name (str): The name of the schema.
+            table_name (str): The name of the table.
+            column_name (str): The name of the column to retrieve the row filter for.
+            func_map (FunctionMap): The FunctionMap object containing the name and columns of the row filter function.
+        Returns:
+            DatabricksRowFilter: A DatabricksRowFilter object representing the row filter for the table.
+        """
+        func = self.workspace_client.functions.get(func_map.name)
+        details = self.__extract_logic_from_row_filter__(sql_definition=func.routine_definition, input_columns=func_map.columns)
+        row_filter = DatabricksRowFilter(name=func_map.name,
+                                         sql=func.routine_definition,
+                                         catalog_name=catalog_name,
+                                         schema_name=schema_name,
+                                         table_name=table_name,
+                                         details=details)
+
+        return row_filter
 
     def __get_schema_tables__(self, catalog: str, schema: str, table_filters: List[str]) -> List[Table]:
         """
@@ -521,7 +593,19 @@ class DatabricksAPIClient:
                             for c in t.columns
                             if c.mask
                         ]
-
+            
+            rlsfilter = None
+            if t.row_filter:
+                rlsfilter = self.__get_row_filter__(catalog_name=catalog, schema_name=schema, table_name=t.name, func_map=FunctionMap(
+                                    name=t.row_filter.function_name, columns=t.row_filter.input_column_names
+                                ))
+            if rlsfilter:
+                self.__workspace.catalog.row_filters.append(rlsfilter)
+                self.__workspace.catalog.tables_with_rls.append(TableObject(catalog_name=catalog,
+                                                                            schema_name=schema,
+                                                                            table_name=t.name,
+                                                                            columns=[c.name for c in t.columns]))
+        
             self.__workspace.catalog.column_masks.extend(cms)
             if cms:
                 self.__workspace.catalog.tables_with_masks.append(TableObject(catalog_name=catalog,
@@ -529,15 +613,9 @@ class DatabricksAPIClient:
                                                                               table_name=t.name,
                                                                               columns=[c.name for c in t.columns]))
 
-            row_filter = None if not t.row_filter else FunctionMap(
-                            name=t.row_filter.function_name,
-                            columns=t.row_filter.input_column_names,
-                        )
-            if row_filter:
-                self.row_filter_func_maps.append(row_filter)
             t_ = Table(
                         name=t.name,
-                        row_filter=row_filter,
+                        row_filter=rlsfilter,
                         column_masks=cms,
                         privileges=self.__get_privileges__(SecurableType.TABLE.value, t.full_name),
                     )

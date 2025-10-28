@@ -14,6 +14,9 @@ constraints:
   columns:
     columnlevelsecurity: true
     fallback: deny
+  rows:
+    rowlevelsecurity: true
+    fallback: deny
 service_principal:
   client_id: <Depending on the keyvault setting: the keyvault secret name or your azure SP client id>
   client_secret: <Depending on the keyvault setting: the keyvault secret name or your azure SP secret>

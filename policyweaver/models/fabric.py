@@ -71,6 +71,16 @@ class ColumnConstraint(CommonBaseModel):
     column_effect: Optional[PolicyEffectType] = Field(alias="columnEffect", default=None)
     column_action: Optional[List[FabricPolicyAccessType]] = Field(alias="columnAction", default=None)
 
+class RowConstraint(CommonBaseModel):
+    """
+    Represents a row constraint in a policy decision rule.
+    Attributes:
+        table_path: The path of the table to which the constraint applies.
+        value: The condition or value defining the row constraint.
+    """
+    table_path: Optional[str] = Field(alias="tablePath", default=None)
+    value: Optional[str] = Field(alias="value", default=None)
+
 class Constraints(CommonBaseModel):
     """
     Represents constraints in a policy decision rule.
@@ -78,6 +88,7 @@ class Constraints(CommonBaseModel):
         columns: A list of column constraints associated with the policy decision.
     """
     columns: Optional[List[ColumnConstraint]] = Field(alias="columns", default=None)
+    rows: Optional[List['RowConstraint']] = Field(alias="rows", default=None)
 
 
 class PolicyDecisionRule(CommonBaseModel):

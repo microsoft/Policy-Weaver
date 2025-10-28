@@ -4,7 +4,7 @@ from typing import Optional, List, Dict
 from policyweaver.core.utility import Utils
 from policyweaver.models.common import CommonBaseModel
 from policyweaver.models.config import SourceMap
-from policyweaver.core.enum import ColumnMaskType, IamType
+from policyweaver.core.enum import ColumnMaskType, IamType, RowFilterType
 
 class DependencyMap(CommonBaseModel):
     """
@@ -156,6 +156,20 @@ class ColumnMaskExtraction(CommonBaseModel):
     mask_pattern: Optional[str] = Field(alias="mask_pattern", default=None)
     column_mask_type: Optional[ColumnMaskType] = Field(alias="column_mask_type", default=None)
 
+class RowFilterDetails(CommonBaseModel):
+    """
+    Represents the extraction of a row filter from a SQL definition.
+    This class is used to capture the details of a row filter, including the group name and condition for others.
+    Attributes:
+        group_name (Optional[str]): The name of the group associated with the row filter.
+        condition_for_others (Optional[str]): The condition applied to other rows not matching the group.
+        row_filter_type (Optional[RowFilterType]): The type of the row filter (e.g., EXPLICIT_GROUP_MEMBERSHIP).
+    """
+    group_name: Optional[str] = Field(alias="group_name", default=None)
+    condition_for_group: Optional[str] = Field(alias="condition_for_group", default=None)
+    condition_for_others: Optional[str] = Field(alias="condition_for_others", default=None)
+    row_filter_type: Optional[RowFilterType] = Field(alias="row_filter_type", default=None)
+
 class DatabricksColumnMask(CommonBaseModel):
     """
     Represents a column mask that can be applied to data in the Databricks workspace.
@@ -176,15 +190,33 @@ class DatabricksColumnMask(CommonBaseModel):
     group_name: Optional[str] = Field(alias="group_name", default=None)
     mask_pattern: Optional[str] = Field(alias="mask_pattern", default=None)
 
+class DatabricksRowFilter(CommonBaseModel):
+    """
+    Represents a row filter that can be applied to data in the Databricks workspace.
+    This class extends CommonBaseModel to include the routine definition of the filter.
+    Attributes:
+        name: (Optional[str]): The name of the row filter.
+        routine_definition (Optional[str]): The SQL definition of the row filter routine.
+    """
+    name: Optional[str] = Field(alias="name", default=None)
+    routine_definition: Optional[str] = Field(alias="routine_definition", default=None)
+    catalog_name: Optional[str] = Field(alias="catalog_name", default=None)
+    schema_name: Optional[str] = Field(alias="schema_name", default=None)
+    table_name: Optional[str] = Field(alias="table_name", default=None)
+    details: Optional[RowFilterDetails] = Field(alias="details", default=None)
+
+
 class Function(PrivilegedObject):
     """
     Represents a function that can be applied to data in the Databricks workspace.
     This class extends PrivilegedObject to include the SQL definition of the function.
     Attributes:
         sql (Optional[str]): The SQL definition of the function.
+        function_type (Optional[str]): The type of the function (e.g., SCALAR, TABLE).
         This allows the function to be defined in SQL and applied to data as needed.
     """
     sql: Optional[str] = Field(alias="sql", default=None)
+    function_type: Optional[str] = Field(alias="function_type", default=None)
 
 class TableObject(CommonBaseModel):
 
@@ -210,7 +242,7 @@ class Table(PrivilegedObject):
     column_masks: Optional[List[DatabricksColumnMask]] = Field(
         alias="column_masks", default=None
     )
-    row_filter: Optional[FunctionMap] = Field(alias="row_filter", default=None)
+    row_filter: Optional[DatabricksRowFilter] = Field(alias="row_filter", default=None)
 
 class Schema(PrivilegedObject):
     """
@@ -239,7 +271,8 @@ class Catalog(PrivilegedObject):
     schemas: Optional[List[Schema]] = Field(alias="schemas", default=None)
     column_masks: Optional[List[DatabricksColumnMask]] = Field(alias="column_masks", default=None)
     tables_with_masks: Optional[List[TableObject]] = Field(alias="tables_with_masks", default=None)
-    row_filters: Optional[List[RowFilterFunctionInfo]] = Field(alias="row_filters", default=None)
+    row_filters: Optional[List[DatabricksRowFilter]] = Field(alias="row_filters", default=None)
+    tables_with_rls: Optional[List[TableObject]] = Field(alias="tables_with_rls", default=None)
 
 class DatabricksUser(BaseObject):
     """
