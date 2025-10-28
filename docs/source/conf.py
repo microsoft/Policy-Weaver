@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.abspath('../..'))
 project = 'policyweaver'
 copyright = '2025, Tonio Lora, Christopher Price, Melissa Lacefield, Andreas Rederer, Christian Wolff'
 author = '2025, Tonio Lora, Christopher Price, Melissa Lacefield, Andreas Rederer, Christian Wolff'
-release = '0.3.3'
+release = '0.3.4'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
