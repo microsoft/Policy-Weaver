@@ -13,7 +13,7 @@ class FabricAPI:
         token (str): Authentication token for accessing the Fabric API.
         rest_api_proxy (RestAPIProxy): Proxy for making REST API calls to the Fabric API.
     """
-    def __init__(self, workspace_id: str):
+    def __init__(self, workspace_id: str, weaver_type: str = None):
         """
         Initializes the FabricAPI instance with the given workspace ID.
         Args:
@@ -21,6 +21,7 @@ class FabricAPI:
         """
         self.logger = logging.getLogger("POLICY_WEAVER")
         self.workspace_id = workspace_id
+        self.weaver_type = weaver_type
 
         self.token = ServicePrincipal.get_token()
 
@@ -30,7 +31,7 @@ class FabricAPI:
         }
 
         self.rest_api_proxy = RestAPIProxy(
-            base_url="https://api.fabric.microsoft.com/v1", headers=headers
+            base_url="https://api.fabric.microsoft.com/v1", headers=headers, weaver_type=self.weaver_type
         )
 
     def __get_workspace_uri__(self, uri) -> str:

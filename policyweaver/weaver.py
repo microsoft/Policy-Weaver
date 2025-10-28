@@ -128,7 +128,7 @@ class WeaverAgent:
         """
         self.config = config
         self.logger = logging.getLogger("POLICY_WEAVER")
-        self.fabric_api = FabricAPI(config.fabric.workspace_id)
+        self.fabric_api = FabricAPI(config.fabric.workspace_id, self.config.type)
         self.graph_client = MicrosoftGraphClient()
 
         self._source_snapshot_handler = None
