@@ -156,19 +156,28 @@ class ColumnMaskExtraction(CommonBaseModel):
     mask_pattern: Optional[str] = Field(alias="mask_pattern", default=None)
     column_mask_type: Optional[ColumnMaskType] = Field(alias="column_mask_type", default=None)
 
+class RowFilterDetailGroup(CommonBaseModel):
+    """
+    Represents a group within a row filter, including its name and return value.
+    Attributes:
+        group_name (Optional[str]): The name of the group associated with the row filter.
+        return_value (Optional[str]): The value returned by the row filter for this group.
+    """
+    group_name: Optional[str] = Field(alias="group_name", default=None)
+    return_value: Optional[str] = Field(alias="return_value", default=None)
+
 class RowFilterDetails(CommonBaseModel):
     """
     Represents the extraction of a row filter from a SQL definition.
     This class is used to capture the details of a row filter, including the group name and condition for others.
     Attributes:
         group_name (Optional[str]): The name of the group associated with the row filter.
-        condition_for_others (Optional[str]): The condition applied to other rows not matching the group.
         row_filter_type (Optional[RowFilterType]): The type of the row filter (e.g., EXPLICIT_GROUP_MEMBERSHIP).
+        default_value (Optional[str]): The default value returned by the row filter when no group matches.
     """
-    group_name: Optional[str] = Field(alias="group_name", default=None)
-    condition_for_group: Optional[str] = Field(alias="condition_for_group", default=None)
-    condition_for_others: Optional[str] = Field(alias="condition_for_others", default=None)
+    groups: Optional[List[RowFilterDetailGroup]] = Field(alias="groups", default=None)
     row_filter_type: Optional[RowFilterType] = Field(alias="row_filter_type", default=None)
+    default_value: Optional[str] = Field(alias="default_value", default=None)
 
 class DatabricksColumnMask(CommonBaseModel):
     """

@@ -7,8 +7,7 @@ from pydantic.json import pydantic_encoder
 from databricks.sdk import (
     WorkspaceClient, AccountClient
 )
-
-from typing import List
+from typing import List, Dict, Any
 from databricks.sdk.errors import NotFound
 from databricks.sdk.service.catalog import SecurableType
 
@@ -16,7 +15,7 @@ from policyweaver.models.config import (
     SourceSchema, Source
 )
 from policyweaver.plugins.databricks.model import (
-    DatabricksColumnMask, DatabricksRowFilter, ColumnMaskExtraction, RowFilterDetails, DatabricksUser, DatabricksServicePrincipal, DatabricksGroup,
+    DatabricksColumnMask, DatabricksRowFilter, ColumnMaskExtraction, RowFilterDetails, RowFilterDetailGroup, DatabricksUser, DatabricksServicePrincipal, DatabricksGroup,
     DatabricksGroupMember, Account, RowFilterFunctionInfo, TableObject, Workspace, Catalog, Schema, Table,
     Function, FunctionMap, Privilege
 )
@@ -473,32 +472,58 @@ class DatabricksAPIClient:
         
         return result
 
-    def __extract_logic_from_row_filter__(self, sql_definition: str, input_columns: List[str]) -> ColumnMaskExtraction:
+    def __extract_case_when_logic_row_filter__(self,sql_definition: str) -> RowFilterDetails:
         """
-        Extracts the group name and mask pattern from a column mask function definition.
+        Parse a CASE WHEN row filter definition to extract group memberships and their values.
         
         Args:
-            sql_definition (str): The SQL definition containing is_account_group_member function
-            input_columns (List[str]): The list of input columns for the row filter
-
+            sql_definition: The SQL CASE statement from a row filter
+            
         Returns:
-            ColumnMaskExtraction: An object containing the extracted group name and mask pattern
+            Dictionary containing:
+            - groups: List of dicts with 'group_name' and 'return_value'
+            - default_value: The ELSE clause value
+            - filter_type: The type of filter logic
         """
-        # result = None
-
-        # definition = sql_definition.replace("\n", " ").replace("\r", " ").replace(" ", "")
-        # if not (definition[:8] == "CASEWHEN" and definition[8:31] == "is_account_group_member"):
-        #     self.logger.warning("Unexpected format: does not start with 'CASE WHEN is_account_group_member'")
-        #     return result
-        # group_name = definition[32:].split(")")[0].replace("'", "").replace('"', '')
-        # Returns:
-        #     dict: Dictionary containing 'group_name' and 'mask_pattern', or None values if not found
+        result = RowFilterDetails(groups=[], default_value=None, row_filter_type=RowFilterType.EXPLICIT_GROUP_MEMBERSHIP)
+        pattern = r"IS_ACCOUNT_GROUP_MEMBER\('([^']+)'\)THEN([^W]+?)(?:WHEN|ELSE)"
         
-        result = RowFilterDetails(row_filter=RowFilterType.UNSUPPORTED)
-        definition = sql_definition.replace("\n", " ").replace("\r", " ").replace(" ", "") 
-        if not definition.startswith("IF(IS_ACCOUNT_GROUP_MEMBER("):
-            self.logger.warning("Unexpected format: does not start with 'IF(IS_ACCOUNT_GROUP_MEMBER('")
-            return result
+        matches = re.findall(pattern, sql_definition, re.IGNORECASE)
+        
+        for match in matches:
+            group_name = match[0]
+            # match[1] is string value (like 'T001'), match[2] is boolean value (true/false)
+            return_value = match[1] if match[1] else match[2]
+            if not group_name or not return_value:
+                continue
+            
+            result.groups.append(RowFilterDetailGroup(
+                group_name=group_name,
+                return_value=return_value
+            ))
+        
+        # Extract ELSE clause
+        else_pattern = r"ELSE(.+?)END"
+        else_match = re.search(else_pattern, sql_definition, re.IGNORECASE)
+        if else_match:
+            result.default_value = else_match.group(1) if else_match.group(1) else else_match.group(2)
+        
+        if not result.default_value or not result.groups:
+            self.logger.warning("Could not fully parse row filter definition.")
+            return None
+        return result
+
+    def __extract_if_logic_row_filter__(self, definition: str) -> RowFilterDetails:
+        """
+        Parse an IF row filter definition to extract group membership and their values.
+        
+        Args:
+            sql_definition: The SQL IF statement from a row filter
+        Returns:
+            Dictionary containing:
+
+        """
+        
         group_name = definition[27:].split("'")[1]
         start = f"IF(IS_ACCOUNT_GROUP_MEMBER('{group_name}'),"
         if not definition.startswith(start):
@@ -514,12 +539,42 @@ class DatabricksAPIClient:
             return result        
 
         result = RowFilterDetails(
-            group_name=group_name,
-            condition_for_group=condition_for_group,
-            condition_for_others=condition_for_others,
+            groups=[RowFilterDetailGroup(
+                group_name=group_name,
+                return_value=condition_for_group
+            )],
+            default_value=condition_for_others,
             row_filter_type=RowFilterType.EXPLICIT_GROUP_MEMBERSHIP
         )
 
+        return result
+
+
+    def __extract_logic_from_row_filter__(self, sql_definition: str) -> RowFilterDetails:
+        """
+        Extracts the group name and mask pattern from a column mask function definition.
+        
+        Args:
+            sql_definition (str): The SQL definition containing is_account_group_member function
+
+        Returns:
+            ColumnMaskExtraction: An object containing the extracted group name and mask pattern
+        """
+
+        
+        result = RowFilterDetails(row_filter_type=RowFilterType.UNSUPPORTED)
+        definition = sql_definition.replace("\n", " ").replace("\r", " ").replace(" ", "") 
+        if not definition.startswith("IF(IS_ACCOUNT_GROUP_MEMBER(") and not definition.startswith("CASEWHENIS_ACCOUNT_GROUP_MEMBER("):
+            self.logger.warning("Unexpected format: does not start with 'IF(IS_ACCOUNT_GROUP_MEMBER(' or 'CASEWHENIS_ACCOUNT_GROUP_MEMBER('")
+            return result
+
+        if definition.startswith("CASEWHENIS_ACCOUNT_GROUP_MEMBER("):
+            result_ = self.__extract_case_when_logic_row_filter__(definition)
+        else:
+            result_ = self.__extract_if_logic_row_filter__(definition)
+        
+        if result_:
+            return result_
         
         return result
     
@@ -557,7 +612,7 @@ class DatabricksAPIClient:
             DatabricksRowFilter: A DatabricksRowFilter object representing the row filter for the table.
         """
         func = self.workspace_client.functions.get(func_map.name)
-        details = self.__extract_logic_from_row_filter__(sql_definition=func.routine_definition, input_columns=func_map.columns)
+        details = self.__extract_logic_from_row_filter__(sql_definition=func.routine_definition)
         row_filter = DatabricksRowFilter(name=func_map.name,
                                          sql=func.routine_definition,
                                          catalog_name=catalog_name,

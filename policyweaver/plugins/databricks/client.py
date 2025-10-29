@@ -299,13 +299,14 @@ class DatabricksPolicyWeaver(PolicyWeaverCore):
             key = self.__get_three_part_key__(catalog=row_filter_policy.catalog_name,
                                               schema=row_filter_policy.schema_name,
                                               table=row_filter_policy.table_name)
-            if self.__has_read_permissions__(row_filter_policy.details.group_name, key):
-                to = TableObject(catalog_name=row_filter_policy.catalog_name,
-                    schema_name=row_filter_policy.schema_name,
-                    table_name=row_filter_policy.table_name,
-                    privileges=[Privilege(principal=row_filter_policy.details.group_name, privileges=["SELECT"])]
-                )
-                special_grants.append(to)
+            for group in row_filter_policy.details.groups:
+                if self.__has_read_permissions__(group.group_name, key):
+                    to = TableObject(catalog_name=row_filter_policy.catalog_name,
+                        schema_name=row_filter_policy.schema_name,
+                        table_name=row_filter_policy.table_name,
+                        privileges=[Privilege(principal=group.group_name, privileges=["SELECT"])]
+                    )
+                    special_grants.append(to)
 
         return special_grants
 
@@ -517,12 +518,20 @@ class DatabricksPolicyWeaver(PolicyWeaverCore):
                         self.logger.warning(f"Unsupported row filter type for row filter policy {mp.name} on {mp.catalog_name}.{mp.schema_name}.{mp.table_name}")
                         self.logger.warning(f"Using fallback: {self.config.constraints.rows.fallback}")
                         if self.config.constraints.rows.fallback != "grant":
-                            filter_condition = "1=0"  # Deny all
+                            filter_condition = "DENYALL"  # Deny all
                     elif mp.details.row_filter_type == RowFilterType.EXPLICIT_GROUP_MEMBERSHIP:
-                        if any([role for role in role_assignments if role == mp.details.group_name]):
-                            filter_condition = mp.details.condition_for_group
-                        else:
-                            filter_condition = mp.details.condition_for_others
+                        filter_condition = None
+                        for group in mp.details.groups:
+                            if group.group_name in role_assignments:
+                                filter_condition = group.return_value
+                                break
+                        if not filter_condition:
+                            filter_condition = mp.details.default_value
+                        if filter_condition == "false":
+                            filter_condition = "DENYALL"
+                        if filter_condition == "true":
+                            continue
+
                                
                     constraint = RowConstraint(catalog_name=mp.catalog_name,
                                             schema_name=mp.schema_name,

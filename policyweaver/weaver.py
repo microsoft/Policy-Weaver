@@ -645,6 +645,7 @@ class WeaverAgent:
         columnconstraints = []
         rowconstraints = []
         tables_with_all_columns_denied = []
+        tables_with_all_rows_denied = []
 
         if policy.columnconstraints and self.config.constraints and self.config.constraints.columns and self.config.constraints.columns.columnlevelsecurity:
             for cc in policy.columnconstraints:
@@ -664,6 +665,12 @@ class WeaverAgent:
 
         if policy.rowconstraints and self.config.constraints and self.config.constraints.rows and self.config.constraints.rows.rowlevelsecurity:
             for rc in policy.rowconstraints:
+                table_path = self.__get_table_mapping__(rc.catalog_name, rc.schema_name, rc.table_name)
+                if table_path and table_path != "*":
+                    table_path = f"/{table_path}"
+                if rc.filter_condition == "DENYALL":
+                    tables_with_all_rows_denied.append(table_path)
+                    continue
                 value = self.__generate_rls_value__(
                     schema_name=rc.schema_name,
                     table_name=rc.table_name,
@@ -671,9 +678,7 @@ class WeaverAgent:
                 )
                 if not value:
                     continue
-                table_path = self.__get_table_mapping__(rc.catalog_name, rc.schema_name, rc.table_name)
-                if table_path and table_path != "*":
-                    table_path = f"/{table_path}"
+
                 rowconstraints.append(RowConstraint(
                                             table_path=table_path,
                                             value=value))
@@ -681,7 +686,7 @@ class WeaverAgent:
 
         # Remove all tablepaths that have all columns denied
         table_paths = [tp for tp in table_paths if tp not in tables_with_all_columns_denied]
-
+        table_paths = [tp for tp in table_paths if tp not in tables_with_all_rows_denied]
                                                         
         if not table_paths:
             self.logger.warning(f"POLICY WEAVER - No valid table mappings found for policy {policy.name}. Skipping...")
