@@ -22,6 +22,10 @@
   <a href="https://badgen.net/pypi/dm/policy-weaver" target="_blank">
     <img src="https://badgen.net/pypi/dm/policy-weaver" alt="Monthly Downloads">
 </a>
+</a>
+  <a href="https://badge.socket.dev/pypi/package/policy-weaver?artifact_id=tar-gz" target="_blank">
+    <img src="https://badge.socket.dev/pypi/package/policy-weaver?artifact_id=tar-gz" alt="Socket Badge">
+</a>
 </p>
 
 ---
