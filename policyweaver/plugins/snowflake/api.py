@@ -529,7 +529,7 @@ class SnowflakeAPIClient:
                                         column_mask_type=extraction.column_mask_type
                                         )
             self.masking_policies.append(mp)
-
+  
             query = f"""SELECT COLUMN_NAME FROM SNOWFLAKE.ACCOUNT_USAGE.COLUMNS WHERE TABLE_CATALOG = '{mp.database_name}' AND TABLE_SCHEMA = '{mp.schema_name}' AND TABLE_NAME = '{mp.table_name}';"""
             columns = self.__run_query__(query, columns=["COLUMN_NAME"])
             column_names = [c["COLUMN_NAME"] for c in columns]
