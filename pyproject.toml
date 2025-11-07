@@ -1,6 +1,6 @@
 [project]
 name = "policy-weaver"
-version = "0.3.2"
+version = "0.3.3"
 description = "Policy Weaver for Microsoft Fabric"
 readme = "README.md"
 requires-python = ">=3.11.8"
@@ -18,7 +18,7 @@ dependencies = [
     "pydantic>=2.10.5",
     "python-dotenv>=1.0.1",
     "pyyaml>=6.0.2",
-    "snowflake-connector-python>=3.16.0",
+    "snowflake-connector-python>=3.16.0"
 ]
 
 classifiers = [

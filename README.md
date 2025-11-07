@@ -19,6 +19,9 @@
 <a href="https://badgen.net/pypi/v/Policy-Weaver" target="_blank">
     <img src="https://badgen.net/pypi/v/Policy-Weaver" alt="Package version">
 </a>
+  <a href="https://badgen.net/pypi/dm/policy-weaver" target="_blank">
+    <img src="https://badgen.net/pypi/dm/policy-weaver" alt="Monthly Downloads">
+</a>
 </p>
 
 ---
@@ -35,6 +38,7 @@ A Python-based accelerator designed to automate the synchronization of security 
 - **Pluggable Framework**: Supports Azure Databricks and Snowflake policies, with more connectors planned.
 - **Secure**: Can use Azure Key Vault to securely manage sensitive information like Service Principal credentials and API tokens.
 
+
 ## Table of Contents
 - [Installation](#hammer_and_wrench-installation)
 - [Getting Started](#rocket-getting-started)
@@ -44,6 +48,7 @@ A Python-based accelerator designed to automate the synchronization of security 
 - [Config File values](#books-config-file-values)
 - [Column Level Security](#books-column-level-security)
 - [Row Level Security](#books-row-level-security)
+- [Feedback](#raising_hand-feedback)
 
 
 ## :hammer_and_wrench: Installation
@@ -55,13 +60,15 @@ $ pip install policy-weaver
 # :rocket: Getting Started
 
 Follow the General Prerequisites and Installation steps below [here](#clipboard-general-prerequisites). Then, depending on your source catalog, follow the specific setup instructions for either [Databricks](#thread-databricks-specific-setup) or [Snowflake](#thread-snowflake-specific-setup).
+If you run into any issues, wish for new features or let us know that you like the accelerator, let us know via our feedback form [https://aka.ms/pwfeedback](https://aka.ms/pwfeedback)
 
 ## :clipboard: General Prerequisites
 Before installing and running this solution, ensure you have:
 - **Azure [Service Principal](https://learn.microsoft.com/en-us/entra/identity-platform/howto-create-service-principal-portal)** with the following [Microsoft Graph API permissions](https://learn.microsoft.com/en-us/graph/permissions-reference) (*This is not mandatory in every case but recommended, please check the specific source catalog requirements and limitations*):
   - `User.Read.All` as application permissions
 - [A client secret](https://learn.microsoft.com/en-us/entra/identity-platform/howto-create-service-principal-portal#option-3-create-a-new-client-secret) for the Service Principal
-- Added the Service Principal as [Contributor](https://learn.microsoft.com/en-us/fabric/fundamentals/give-access-workspaces) on the Fabric Workspace containing the mirrored database/catalog.
+- Added the Service Principal as [Admin](https://learn.microsoft.com/en-us/fabric/fundamentals/give-access-workspaces) on the Fabric Workspace containing the mirrored database/catalog.
+- The Service Principal needs to be able to call public Fabric REST APIs. This is configured in the tenant settings via the following setting [service-principals-can-call-fabric-public-apis]( https://learn.microsoft.com/en-us/fabric/admin/service-admin-portal-developer#service-principals-can-call-fabric-public-apis)
 
 > :pushpin: **Note:** Every source catalog has additional pre-requisites
 
@@ -356,6 +363,11 @@ If you see demand for more (simple) row access policies which are not supported,
 
 
 If for a specific role all columns of a table are denied, the whole table is denied to this role and will not show up in the Fabric for this role.
+
+
+## :raising_hand: Feedback
+
+If you run into any issues, wish for new features or let us know that you like the accelerator, let us know via our feedback form [https://aka.ms/pwfeedback](https://aka.ms/pwfeedback)
 
 
 ## :raising_hand: Contributing
