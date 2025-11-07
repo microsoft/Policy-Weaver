@@ -1,6 +1,6 @@
 import logging
 import pandas as pd
-import json
+import re
 import os
 from pydantic.json import pydantic_encoder
 
@@ -12,9 +12,11 @@ from policyweaver.models.config import (
     SourceSchema, Source
 )
 
-from policyweaver.core.enum import ColumnMaskType
+from policyweaver.core.enum import ColumnMaskType, RowFilterType
 
 from policyweaver.plugins.snowflake.model import (
+    RowFilterDetailGroup,
+    RowFilterDetails,
     SnowflakeColumnMask,
     SnowflakeColumnMaskExtraction,
     SnowflakeConnection,
@@ -22,10 +24,11 @@ from policyweaver.plugins.snowflake.model import (
     SnowflakeMaskingPolicy,
     SnowflakeRole,
     SnowflakeRoleMemberMap,
+    SnowflakeRowFilter,
     SnowflakeUser,
     SnowflakeDatabaseMap,
     SnowflakeUserOrRole,
-    SnowflakeTableWithMask
+    SnowflakeTableWithPolicy
 )
 from policyweaver.core.enum import (
     IamType
@@ -174,11 +177,104 @@ class SnowflakeAPIClient:
 
         self.__get_column_masks__(source.name)
 
+        # get row access policies
+        self.__get_row_access_policies__(source.name)
+
+        self.__get_unsupported_policies__(source.name)
 
         return SnowflakeDatabaseMap(users=self.users, roles=self.roles,
                                     grants=self.grants,
                                     masking_policies=self.masking_policies,
-                                    tables_with_masks=self.tables_with_masks)
+                                    tables_with_masks=self.tables_with_masks,
+                                    row_access_policies=self.row_access_policies,
+                                    tables_with_raps=self.tables_with_raps,
+                                    unsupported_tables=self.unsupported_tables
+                                    )
+
+
+    def __get_unsupported_policies__(self, database: str) -> None:
+
+        # AGGREGATION POLICIES
+        query = f"""                            
+                SELECT
+                    rap.POLICY_BODY,
+                    pr.POLICY_ID,
+                    pr.POLICY_NAME,
+                    pr.ref_database_name,
+                    pr.ref_schema_name,
+                    pr.ref_entity_name,
+                    pr.ref_column_name
+                FROM SNOWFLAKE.ACCOUNT_USAGE.POLICY_REFERENCES pr
+                JOIN SNOWFLAKE.ACCOUNT_USAGE.AGGREGATION_POLICIES rap
+                    ON pr.POLICY_ID = rap.POLICY_ID
+                AND pr.REF_DATABASE_NAME = '{database.upper()}' AND REF_ENTITY_DOMAIN = 'TABLE' AND POLICY_STATUS = 'ACTIVE';
+
+                ;"""
+
+        agg_policies = self.__run_query__(query, columns=["POLICY_BODY", "POLICY_ID",
+                                                        "POLICY_NAME", "ref_database_name",
+                                                        "ref_schema_name",
+                                                        "ref_entity_name",
+                                                        "ref_column_name"])
+        
+        # JOIN POLICIES
+
+        query = f"""
+                SELECT
+                    rap.POLICY_BODY,
+                    pr.POLICY_ID,
+                    pr.POLICY_NAME,
+                    pr.ref_database_name,
+                    pr.ref_schema_name,
+                    pr.ref_entity_name,
+                    pr.ref_column_name
+                FROM SNOWFLAKE.ACCOUNT_USAGE.POLICY_REFERENCES pr
+                JOIN SNOWFLAKE.ACCOUNT_USAGE.JOIN_POLICIES rap
+                    ON pr.POLICY_ID = rap.POLICY_ID
+                AND pr.REF_DATABASE_NAME = '{database.upper()}' AND REF_ENTITY_DOMAIN = 'TABLE' AND POLICY_STATUS = 'ACTIVE';          
+                """
+        
+        join_policies = self.__run_query__(query, columns=["POLICY_BODY", "POLICY_ID",
+                                                        "POLICY_NAME", "ref_database_name",
+                                                        "ref_schema_name",
+                                                        "ref_entity_name",
+                                                        "ref_column_name"])
+
+        # PROJECTION POLICIES
+
+        query = f"""                            
+                SELECT
+                    rap.POLICY_BODY,
+                    pr.POLICY_ID,
+                    pr.POLICY_NAME,
+                    pr.ref_database_name,
+                    pr.ref_schema_name,
+                    pr.ref_entity_name,
+                    pr.ref_column_name
+                FROM SNOWFLAKE.ACCOUNT_USAGE.POLICY_REFERENCES pr
+                JOIN SNOWFLAKE.ACCOUNT_USAGE.PROJECTION_POLICIES rap
+                    ON pr.POLICY_ID = rap.POLICY_ID
+                AND pr.REF_DATABASE_NAME = '{database.upper()}' AND REF_ENTITY_DOMAIN = 'TABLE' AND POLICY_STATUS = 'ACTIVE';
+
+                ;"""
+
+        projection_policies = self.__run_query__(query, columns=["POLICY_BODY", "POLICY_ID",
+                                                        "POLICY_NAME", "ref_database_name",
+                                                        "ref_schema_name",
+                                                        "ref_entity_name",
+                                                        "ref_column_name"])
+
+
+        unsupported_policies = agg_policies + join_policies + projection_policies
+
+        unsupported_tables = [SnowflakeTableWithPolicy(database_name=up["ref_database_name"],
+                                                       schema_name=up["ref_schema_name"],
+                                                       table_name=up["ref_entity_name"],
+                                                       column_names=[]) for up in unsupported_policies]
+
+        self.unsupported_tables = unsupported_tables
+
+                                  
 
     def __get_grants__(self, source: Source) -> List[SnowflakeGrant]:
 
@@ -222,7 +318,171 @@ class SnowflakeAPIClient:
                                  grantee_name=grant["GRANTEE_NAME"]) for grant in grants_raw]
         
         return grants
+    
+    def __get_row_access_policies__(self, database: str) -> None:
+        """Retrieves the row access policies for a specific database.
+        Args:
+            database (str): The name of the database for which to retrieve row access policies.
+        """
+    
+        query = f"""                            
+                SELECT
+                    rap.POLICY_BODY,
+                    pr.POLICY_ID,
+                    pr.POLICY_NAME,
+                    pr.ref_database_name,
+                    pr.ref_schema_name,
+                    pr.ref_entity_name,
+                    pr.ref_column_name
+                FROM SNOWFLAKE.ACCOUNT_USAGE.POLICY_REFERENCES pr
+                JOIN SNOWFLAKE.ACCOUNT_USAGE.ROW_ACCESS_POLICIES rap
+                    ON pr.POLICY_ID = rap.POLICY_ID
+                AND pr.REF_DATABASE_NAME = '{database.upper()}' AND REF_ENTITY_DOMAIN = 'TABLE' AND POLICY_STATUS = 'ACTIVE';
 
+                ;"""
+
+        row_access_policies = self.__run_query__(query, columns=["POLICY_BODY", "POLICY_ID",
+                                                        "POLICY_NAME", "ref_database_name",
+                                                        "ref_schema_name",
+                                                        "ref_entity_name",
+                                                        "ref_column_name"])
+        
+        self.row_access_policies = list()
+        self.tables_with_raps = list()
+        for rap in row_access_policies:
+            extraction = self.__extract_logic_from_row_filter__(rap["POLICY_BODY"])
+            mp = SnowflakeRowFilter(id=rap["POLICY_ID"],
+                                    name=rap["POLICY_NAME"],
+                                    database_name=rap["ref_database_name"],
+                                    schema_name=rap["ref_schema_name"],
+                                    table_name=rap["ref_entity_name"],
+                                    routine_definition=rap["POLICY_BODY"],
+                                    details=extraction
+                                    )
+            self.row_access_policies.append(mp)
+
+            query = f"""SELECT COLUMN_NAME FROM SNOWFLAKE.ACCOUNT_USAGE.COLUMNS WHERE TABLE_CATALOG = '{mp.database_name}' AND TABLE_SCHEMA = '{mp.schema_name}' AND TABLE_NAME = '{mp.table_name}';"""
+            columns = self.__run_query__(query, columns=["COLUMN_NAME"])
+            column_names = [c["COLUMN_NAME"] for c in columns]
+            self.tables_with_raps.append(SnowflakeTableWithPolicy(
+                database_name=mp.database_name,
+                schema_name=mp.schema_name,
+                table_name=mp.table_name,
+                column_names=column_names
+            ))
+        
+    def __extract_case_when_logic_row_filter__(self,sql_definition: str) -> RowFilterDetails:
+            """
+            Parse a CASE WHEN row filter definition to extract group memberships and their values.
+            
+            Args:
+                sql_definition: The SQL CASE statement from a row filter
+                
+            Returns:
+                Dictionary containing:
+                - groups: List of dicts with 'group_name' and 'return_value'
+                - default_value: The ELSE clause value
+                - filter_type: The type of filter logic
+            """
+            result = RowFilterDetails(groups=[], default_value=None, row_filter_type=RowFilterType.EXPLICIT_GROUP_MEMBERSHIP)
+
+            # Remove CASE and END
+            content = sql_definition.replace('CASE', '').replace('END', '').strip()
+            
+            # Find all WHEN...THEN patterns
+            when_pattern = r"WHENcurrent_role\(\)in\('([^']+)'\)THEN([^W]+?)(?=WHEN|ELSE|$)"
+            when_matches = re.findall(when_pattern, content)
+            
+            # Find ELSE clause
+            else_pattern = r"ELSE(.+?)$"
+            else_match = re.search(else_pattern, content)
+                        
+            # Extract group and expression pairs
+            for group, expression in when_matches:
+                result.groups.append(RowFilterDetailGroup(group_name=group, return_value=expression.strip()))
+            
+            # Add ELSE clause if exists
+            if else_match:
+                result.default_value = else_match.group(1).strip()
+
+            return result
+            
+
+    def __extract_if_logic_row_filter__(self, definition: str) -> RowFilterDetails:
+        """
+        Parse an IF row filter definition to extract group membership and their values.
+        
+        Args:
+            sql_definition: The SQL IF statement from a row filter
+        Returns:
+            Dictionary containing:
+
+        """
+        
+        group_name = definition[17:].split("'")[1]
+        start_in = f"current_role()in('{group_name}'"
+        equal = definition == f"current_role()=('{group_name}')"
+        if not (definition.startswith(start_in) or equal):
+            self.logger.warning("Unexpected format: does not match expected start")
+            return result
+        
+        if equal:
+            result = RowFilterDetails(
+            groups=[RowFilterDetailGroup(
+                group_name=group_name,
+                return_value="true"
+            )],
+            default_value="false",
+            row_filter_type=RowFilterType.EXPLICIT_GROUP_MEMBERSHIP)
+            return result
+
+        result = RowFilterDetails(
+            groups=[],
+            default_value="false",
+            row_filter_type=RowFilterType.EXPLICIT_GROUP_MEMBERSHIP
+        )
+        group_names = definition[17:].split("'")
+        for i, group_name in enumerate(group_names):
+            if i % 2 == 0:
+                continue
+            else:
+                rfdg = RowFilterDetailGroup(
+                    group_name=group_name,
+                    return_value="true"
+                )
+                result.groups.append(rfdg)
+
+        return result
+
+
+    def __extract_logic_from_row_filter__(self, sql_definition: str) -> RowFilterDetails:
+        """
+        Extracts the group name and mask pattern from a column mask function definition.
+        
+        Args:
+            sql_definition (str): The SQL definition containing is_account_group_member function
+
+        Returns:
+            ColumnMaskExtraction: An object containing the extracted group name and mask pattern
+        """
+
+        result = RowFilterDetails(row_filter_type=RowFilterType.UNSUPPORTED)
+        definition = sql_definition.replace("\n", " ").replace("\r", " ").replace(" ", "") 
+
+        if definition.startswith("current_role()"):
+            result_ = self.__extract_if_logic_row_filter__(definition)
+        elif definition.startswith("CASEWHENcurrent_role()"):
+            result_ = self.__extract_case_when_logic_row_filter__(definition)
+        else:
+            result_ = None
+            
+        
+        if result_:
+            return result_
+        self.logger.warning("Unexpected format: does not start 'current_role()' or start with 'CASEWHENcurrent_role('")
+
+        return result
+    
     def __get_column_masks__(self, database: str) -> List[SnowflakeColumnMask]:
         """Retrieves the column masking policies for a specific database.
         Args:
@@ -274,7 +534,7 @@ class SnowflakeAPIClient:
             query = f"""SELECT COLUMN_NAME FROM SNOWFLAKE.ACCOUNT_USAGE.COLUMNS WHERE TABLE_CATALOG = '{mp.database_name}' AND TABLE_SCHEMA = '{mp.schema_name}' AND TABLE_NAME = '{mp.table_name}';"""
             columns = self.__run_query__(query, columns=["COLUMN_NAME"])
             column_names = [c["COLUMN_NAME"] for c in columns]
-            self.tables_with_masks.append(SnowflakeTableWithMask(
+            self.tables_with_masks.append(SnowflakeTableWithPolicy(
                 database_name=mp.database_name,
                 schema_name=mp.schema_name,
                 table_name=mp.table_name,

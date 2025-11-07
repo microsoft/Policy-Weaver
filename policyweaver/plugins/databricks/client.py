@@ -389,8 +389,17 @@ class DatabricksPolicyWeaver(PolicyWeaverCore):
         else:
             self.logger.info("Column level security is enabled in the config.")
             column_security = True
+
+        if not(self.config.constraints and self.config.constraints.rows and self.config.constraints.rows.rowlevelsecurity):
+            self.logger.warning("Row level security is not enabled in the config.")
+            row_security = False
+        else:
+            self.logger.info("Row level security is enabled in the config.")
+            row_security = True
+
         for principal, snapshot in self.snapshot.items():
-            policy = self.__build_role_policy(principal, snapshot.type, permissions, column_security=column_security)
+            policy = self.__build_role_policy(principal, snapshot.type, permissions,
+                                              column_security=column_security, row_security=row_security)
             if policy:
                 policies.append(policy)
 
@@ -540,7 +549,8 @@ class DatabricksPolicyWeaver(PolicyWeaverCore):
                     rowconstraints.append(constraint)
         return rowconstraints
 
-    def __build_role_policy(self, principal:str, iam_type:IamType, permissions:List[PrivilegeItem], column_security:bool) -> RolePolicy:
+    def __build_role_policy(self, principal:str, iam_type:IamType, permissions:List[PrivilegeItem],
+                            column_security:bool, row_security:bool) -> RolePolicy:
         """
         Builds a RolePolicy object from the provided principal and iam_type and catalog items.
         Args:
@@ -555,8 +565,6 @@ class DatabricksPolicyWeaver(PolicyWeaverCore):
             return None
         permission_scopes = []
         
-        # TBD 
-        row_security = True
         rowconstraints = []
         columnconstraints = []
         for cat_item in cat_items:
