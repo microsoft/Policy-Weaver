@@ -35,9 +35,6 @@ A Python-based accelerator designed to automate the synchronization of security 
 - **Pluggable Framework**: Supports Azure Databricks and Snowflake policies, with more connectors planned.
 - **Secure**: Can use Azure Key Vault to securely manage sensitive information like Service Principal credentials and API tokens.
 
-> :pushpin: **Note:** Row-level security extraction will be implemented in the next versions.
-
-
 ## Table of Contents
 - [Installation](#hammer_and_wrench-installation)
 - [Getting Started](#rocket-getting-started)
@@ -46,6 +43,7 @@ A Python-based accelerator designed to automate the synchronization of security 
   - [Snowflake specific setup](#thread-snowflake-specific-setup)
 - [Config File values](#books-config-file-values)
 - [Column Level Security](#books-column-level-security)
+- [Row Level Security](#books-row-level-security)
 
 
 ## :hammer_and_wrench: Installation
@@ -199,6 +197,9 @@ Here ´s how the config.yaml should be adjusted to your environment.
     - columns: (optional, if not set, no column level security will be applied, see below for details [Column Level Security](#books-column-level-security))
       - columnlevelsecurity: true/false (if true, column level security will be applied at best effort. Default: false)
       - fallback: grant/deny (if a not supported column mask is found, the fallback will be applied. Default: deny)
+    - rows: (optional, if not set, no row level security will be applied, see below for details [Row Level Security](#books-row-level-security))
+      - rowlevelsecurity: true/false (if true, row level security will be applied at best effort. Default: false)
+      - fallback: grant/deny (if a not supported row mask is found, the fallback will be applied. Default: deny)
 
 - service_principal:
   - client_id: the client id of the service principal mentioned under general prerequisites **OR** the corresponding secret name in the keyvault if you use keyvault
@@ -229,6 +230,9 @@ fabric:
 constraints:
   columns:
     columnlevelsecurity: true
+    fallback: deny
+  rows:
+    rowlevelsecurity: true
     fallback: deny
 service_principal:
   client_id: 89ac5a4sd894as9df4sad89f
@@ -274,6 +278,9 @@ constraints:
   columns:
     columnlevelsecurity: true
     fallback: deny
+  rows:
+    rowlevelsecurity: true
+    fallback: deny
 service_principal:
   client_id: kv-service-principal-client-id
   client_secret: kv-service-principal-client-secret
@@ -317,6 +324,39 @@ Supported column mask policies:
   - Allow everyone except a specific role to see the real value.  I.e. the function looks like `CASE WHEN CURRENT_ROLE() IN ('HR_ROLE') THEN '<arbitrary_value>' ELSE ssn END`
 
 If for a specific role all columns of a table are denied, the whole table is denied to this role and will not show up in the Fabric for this role.
+:warning: NOTE: Our recommendation is to set the fallback to deny to avoid unintentional data exposure. If you identify a scenaro where there is a data exposure risk, please give us feedback and we´ll try to fix it asap. Note though that this solution is provided as-is without any warranties.
+
+## :books: Row Level Security
+
+Row level security is an optional feature that can be enabled in the config file. If enabled, Policy Weaver will try to apply row level security at best effort and fallback to the configured fallback if a not supported row access policy is found.
+
+
+:warning: NOTE: Row level security is only enabled if the config `policy_mapping` is set to `role_based`. In the case of table_based mapping there would be an unforeseeable high number of roles created in Fabric. That´s why it can only be used in role_based mapping.
+
+
+Databricks and Snowflake support various row level security variations. We currently only support simple row access policies defined on top of a table. OneLake Security sets row level security filters not on a table scope but a "table + role"-scope. For many use cases we can map the simple row access policies to this "table + role"-scope.
+
+
+If you have a row access policy that is not supported by Policy Weaver, you can configure the fallback to either grant or deny access to the whole table by default. This also includes unsupported policies like aggregation, join or projection policies in Snowflake.
+:warning: NOTE: Our recommendation is to set the fallback to deny to avoid unintentional data exposure. If you identify a scenaro where there is a data exposure risk, please give us feedback and we´ll try to fix it asap. Note though that this solution is provided as-is without any warranties.
+
+
+Supported row access policies:
+- Databricks:
+  - Specify a filter for a specific group and a default for the rest in the form of: `IF(IS_ACCOUNT_GROUP_MEMBER('admin'), true, region='US');` 
+  - Based on group membership allow access to certain rows via a CASE statement in the form of: `CASE WHEN IS_ACCOUNT_GROUP_MEMBER('subanalystgroup') THEN true WHEN IS_ACCOUNT_GROUP_MEMBER('analystgroup') THEN Id = 'T001' ELSE false END`
+
+
+- Snowflake:
+  - Allow only specific groups to see the values in the form of: `current_role() in ('SENSITIVE')`
+  - Based on group membership allow access to certain rows via a CASE statement in the form of: `CASE WHEN current_role() in ('SENSITIVE') THEN true  WHEN current_role() in ('COUNTRY') THEN Id = 'T001' ELSE false END`
+
+
+If you see demand for more (simple) row access policies which are not supported, please give us feedback and we´ll try to add them.
+
+
+If for a specific role all columns of a table are denied, the whole table is denied to this role and will not show up in the Fabric for this role.
+
 
 ## :raising_hand: Contributing
 

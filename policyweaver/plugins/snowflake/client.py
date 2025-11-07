@@ -346,12 +346,14 @@ class SnowflakePolicyWeaver(PolicyWeaverCore):
                                                             ut.schema_name == schema and
                                                             ut.table_name == table]
                 if matching_unsupported_tables_per_table:
-                    self.logger.warning(f"Skipping row constraints for unsupported table with unsupported policies: {catalog}.{schema}.{table}")
-                    constraint = RowConstraint(catalog_name=catalog,
-                                               schema_name=schema,
-                                               table_name=table,
-                                               filter_condition="DENYALL")
-                    rowconstraints.append(constraint)
+                    self.logger.warning(f"Detecting unsupported policies like aggregation, join or projection policy on: {catalog}.{schema}.{table} . Using fallback: {self.config.constraints.rows.fallback}")
+                                            
+                    if self.config.constraints.rows.fallback != "grant":
+                        constraint = RowConstraint(catalog_name=catalog,
+                                                schema_name=schema,
+                                                table_name=table,
+                                                filter_condition="DENYALL")
+                        rowconstraints.append(constraint)
                     continue
 
                 for mp in matching_rls_policies_per_table:
@@ -360,6 +362,8 @@ class SnowflakePolicyWeaver(PolicyWeaverCore):
                         self.logger.warning(f"Using fallback: {self.config.constraints.rows.fallback}")
                         if self.config.constraints.rows.fallback != "grant":
                             filter_condition = "DENYALL"  # Deny all
+                        else:
+                            continue
                     elif mp.details.row_filter_type == RowFilterType.EXPLICIT_GROUP_MEMBERSHIP:
                         filter_condition = None
                         for group in mp.details.groups:

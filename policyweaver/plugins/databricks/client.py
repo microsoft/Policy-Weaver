@@ -528,6 +528,8 @@ class DatabricksPolicyWeaver(PolicyWeaverCore):
                         self.logger.warning(f"Using fallback: {self.config.constraints.rows.fallback}")
                         if self.config.constraints.rows.fallback != "grant":
                             filter_condition = "DENYALL"  # Deny all
+                        else:
+                            continue
                     elif mp.details.row_filter_type == RowFilterType.EXPLICIT_GROUP_MEMBERSHIP:
                         filter_condition = None
                         for group in mp.details.groups:
