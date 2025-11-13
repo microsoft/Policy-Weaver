@@ -52,6 +52,16 @@ class ColumnConstraintsConfig(CommonBaseModel):
     columnlevelsecurity: Optional[bool] = Field(alias="columnlevelsecurity", default=False)
     fallback: Optional[str] = Field(alias="fallback", default="deny")
 
+class RowConstraintsConfig(CommonBaseModel):
+    """
+    Configuration for row constraints in the fabric.
+    Attributes:
+        rowlevelsecurity (bool): Flag to indicate whether row-level security is enabled.
+        fallback (str): The fallback policy, e.g., "deny" or "allow".
+    """
+    rowlevelsecurity: Optional[bool] = Field(alias="rowlevelsecurity", default=False)
+    fallback: Optional[str] = Field(alias="fallback", default="deny")
+
 class ConstraintsConfig(CommonBaseModel):
     """
     Configuration for fabric constraints in the Policy Weaver application.
@@ -61,6 +71,7 @@ class ConstraintsConfig(CommonBaseModel):
             - fallback (str): The fallback policy, e.g., "deny" or "allow".
     """
     columns: Optional[ColumnConstraintsConfig] = Field(alias="columns", default=None)
+    rows: Optional[RowConstraintsConfig] = Field(alias="rows", default=None)
 
 class FabricConfig(CommonBaseModel):
     """

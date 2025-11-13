@@ -4,7 +4,7 @@ from typing import Optional, List, Dict
 from policyweaver.core.utility import Utils
 from policyweaver.models.common import CommonBaseModel
 from policyweaver.models.config import SourceMap
-from policyweaver.core.enum import ColumnMaskType, IamType
+from policyweaver.core.enum import ColumnMaskType, IamType, RowFilterType
 
 class DependencyMap(CommonBaseModel):
     """
@@ -137,6 +137,12 @@ class FunctionMap(BaseObject):
     """
     columns: Optional[List[str]] = Field(alias="column", default=None)
 
+class RowFilterFunctionInfo(CommonBaseModel):
+    fullname: Optional[str] = Field(alias="fullname", default=None)
+    name: Optional[str] = Field(alias="name", default=None)
+    full_data_type: Optional[str] = Field(alias="full_data_type", default=None)
+    routine_definition: Optional[str] = Field(alias="routine_definition", default=None)
+
 class ColumnMaskExtraction(CommonBaseModel):
     """
     Represents the extraction of a column mask from a SQL definition.
@@ -149,6 +155,29 @@ class ColumnMaskExtraction(CommonBaseModel):
     group_name: Optional[str] = Field(alias="group_name", default=None)
     mask_pattern: Optional[str] = Field(alias="mask_pattern", default=None)
     column_mask_type: Optional[ColumnMaskType] = Field(alias="column_mask_type", default=None)
+
+class RowFilterDetailGroup(CommonBaseModel):
+    """
+    Represents a group within a row filter, including its name and return value.
+    Attributes:
+        group_name (Optional[str]): The name of the group associated with the row filter.
+        return_value (Optional[str]): The value returned by the row filter for this group.
+    """
+    group_name: Optional[str] = Field(alias="group_name", default=None)
+    return_value: Optional[str] = Field(alias="return_value", default=None)
+
+class RowFilterDetails(CommonBaseModel):
+    """
+    Represents the extraction of a row filter from a SQL definition.
+    This class is used to capture the details of a row filter, including the group name and condition for others.
+    Attributes:
+        group_name (Optional[str]): The name of the group associated with the row filter.
+        row_filter_type (Optional[RowFilterType]): The type of the row filter (e.g., EXPLICIT_GROUP_MEMBERSHIP).
+        default_value (Optional[str]): The default value returned by the row filter when no group matches.
+    """
+    groups: Optional[List[RowFilterDetailGroup]] = Field(alias="groups", default=None)
+    row_filter_type: Optional[RowFilterType] = Field(alias="row_filter_type", default=None)
+    default_value: Optional[str] = Field(alias="default_value", default=None)
 
 class DatabricksColumnMask(CommonBaseModel):
     """
@@ -170,15 +199,33 @@ class DatabricksColumnMask(CommonBaseModel):
     group_name: Optional[str] = Field(alias="group_name", default=None)
     mask_pattern: Optional[str] = Field(alias="mask_pattern", default=None)
 
+class DatabricksRowFilter(CommonBaseModel):
+    """
+    Represents a row filter that can be applied to data in the Databricks workspace.
+    This class extends CommonBaseModel to include the routine definition of the filter.
+    Attributes:
+        name: (Optional[str]): The name of the row filter.
+        routine_definition (Optional[str]): The SQL definition of the row filter routine.
+    """
+    name: Optional[str] = Field(alias="name", default=None)
+    routine_definition: Optional[str] = Field(alias="routine_definition", default=None)
+    catalog_name: Optional[str] = Field(alias="catalog_name", default=None)
+    schema_name: Optional[str] = Field(alias="schema_name", default=None)
+    table_name: Optional[str] = Field(alias="table_name", default=None)
+    details: Optional[RowFilterDetails] = Field(alias="details", default=None)
+
+
 class Function(PrivilegedObject):
     """
     Represents a function that can be applied to data in the Databricks workspace.
     This class extends PrivilegedObject to include the SQL definition of the function.
     Attributes:
         sql (Optional[str]): The SQL definition of the function.
+        function_type (Optional[str]): The type of the function (e.g., SCALAR, TABLE).
         This allows the function to be defined in SQL and applied to data as needed.
     """
     sql: Optional[str] = Field(alias="sql", default=None)
+    function_type: Optional[str] = Field(alias="function_type", default=None)
 
 class TableObject(CommonBaseModel):
 
@@ -204,7 +251,7 @@ class Table(PrivilegedObject):
     column_masks: Optional[List[DatabricksColumnMask]] = Field(
         alias="column_masks", default=None
     )
-    row_filter: Optional[FunctionMap] = Field(alias="row_filter", default=None)
+    row_filter: Optional[DatabricksRowFilter] = Field(alias="row_filter", default=None)
 
 class Schema(PrivilegedObject):
     """
@@ -233,6 +280,8 @@ class Catalog(PrivilegedObject):
     schemas: Optional[List[Schema]] = Field(alias="schemas", default=None)
     column_masks: Optional[List[DatabricksColumnMask]] = Field(alias="column_masks", default=None)
     tables_with_masks: Optional[List[TableObject]] = Field(alias="tables_with_masks", default=None)
+    row_filters: Optional[List[DatabricksRowFilter]] = Field(alias="row_filters", default=None)
+    tables_with_rls: Optional[List[TableObject]] = Field(alias="tables_with_rls", default=None)
 
 class DatabricksUser(BaseObject):
     """

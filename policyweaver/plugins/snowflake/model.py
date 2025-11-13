@@ -1,7 +1,7 @@
 from pydantic import Field
 from typing import Optional, List
 
-from policyweaver.core.enum import ColumnMaskType
+from policyweaver.core.enum import ColumnMaskType, RowFilterType
 from policyweaver.models.common import CommonBaseModel
 from policyweaver.models.config import SourceMap
 
@@ -80,7 +80,7 @@ class SnowflakeGrant(CommonBaseModel):
     grantee_name: Optional[str] = Field(alias="grantee_name", default=None)
 
 
-class SnowflakeTableWithMask(CommonBaseModel):
+class SnowflakeTableWithPolicy(CommonBaseModel):
     """
     Represents a table in Snowflake that has column masks applied.
     Attributes:
@@ -145,6 +145,45 @@ class SnowflakeColumnMask(CommonBaseModel):
     group_names: Optional[List[str]] = Field(alias="group_name", default=None)
     mask_pattern: Optional[str] = Field(alias="mask_pattern", default=None)
 
+class RowFilterDetailGroup(CommonBaseModel):
+    """
+    Represents a group within a row filter, including its name and return value.
+    Attributes:
+        group_name (Optional[str]): The name of the group associated with the row filter.
+        return_value (Optional[str]): The value returned by the row filter for this group.
+    """
+    group_name: Optional[str] = Field(alias="group_name", default=None)
+    return_value: Optional[str] = Field(alias="return_value", default=None)
+
+class RowFilterDetails(CommonBaseModel):
+    """
+    Represents the extraction of a row filter from a SQL definition.
+    This class is used to capture the details of a row filter, including the group name and condition for others.
+    Attributes:
+        group_name (Optional[str]): The name of the group associated with the row filter.
+        row_filter_type (Optional[RowFilterType]): The type of the row filter (e.g., EXPLICIT_GROUP_MEMBERSHIP).
+        default_value (Optional[str]): The default value returned by the row filter when no group matches.
+    """
+    groups: Optional[List[RowFilterDetailGroup]] = Field(alias="groups", default=None)
+    row_filter_type: Optional[RowFilterType] = Field(alias="row_filter_type", default=None)
+    default_value: Optional[str] = Field(alias="default_value", default=None)
+
+class SnowflakeRowFilter(CommonBaseModel):
+    """
+    Represents a row filter that can be applied to data in the Databricks workspace.
+    This class extends CommonBaseModel to include the routine definition of the filter.
+    Attributes:
+        name: (Optional[str]): The name of the row filter.
+        routine_definition (Optional[str]): The SQL definition of the row filter routine.
+    """
+    id: Optional[int] = Field(alias="id", default=None)
+    name: Optional[str] = Field(alias="name", default=None)
+    routine_definition: Optional[str] = Field(alias="routine_definition", default=None)
+    database_name: Optional[str] = Field(alias="database_name", default=None)
+    schema_name: Optional[str] = Field(alias="schema_name", default=None)
+    table_name: Optional[str] = Field(alias="table_name", default=None)
+    details: Optional[RowFilterDetails] = Field(alias="details", default=None)
+
 class SnowflakeDatabaseMap(CommonBaseModel):
     """
     A collection of Snowflake users, roles, and grants for a database
@@ -158,7 +197,10 @@ class SnowflakeDatabaseMap(CommonBaseModel):
     roles: List[SnowflakeRole] = Field(alias="roles", default_factory=list)
     grants: List[SnowflakeGrant] = Field(alias="grants", default_factory=list)
     masking_policies: List[SnowflakeMaskingPolicy] = Field(alias="masking_policies", default_factory=list)
-    tables_with_masks: List[SnowflakeTableWithMask] = Field(alias="tables_with_masks", default_factory=list)
+    tables_with_masks: List[SnowflakeTableWithPolicy] = Field(alias="tables_with_masks", default_factory=list)
+    row_access_policies: List[SnowflakeRowFilter] = Field(alias="row_access_policies", default_factory=list)
+    tables_with_raps: List[SnowflakeTableWithPolicy] = Field(alias="tables_with_raps", default_factory=list)
+    unsupported_tables: List[SnowflakeTableWithPolicy] = Field(alias="unsupported_tables", default_factory=list)
 
 class SnowflakeConnection(CommonBaseModel):
     """

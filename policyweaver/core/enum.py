@@ -41,6 +41,15 @@ class ColumnMaskType(str, CommonBaseEnum):
     MASK_FOR_GROUP = "MASK_FOR_GROUP"
     UNSUPPORTED = "UNSUPPORTED"
 
+class RowFilterType(str, CommonBaseEnum):
+    """
+    Enum representing different types of row filters.
+    This enum is used to categorize row filters.
+    Attributes:
+        GROUP_MEMBERSHIP (str): Represents a row filter based on group membership.
+    """
+    EXPLICIT_GROUP_MEMBERSHIP = "EXPLICIT_GROUP_MEMBERSHIP"
+    UNSUPPORTED = "UNSUPPORTED"
 
 class PermissionType(str, CommonBaseEnum):
     """
