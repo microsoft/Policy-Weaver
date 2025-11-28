@@ -582,8 +582,12 @@ class DatabricksPolicyWeaver(PolicyWeaverCore):
         if iam_type == IamType.GROUP:
             for group in self.workspace.groups:
                 if group.name == principal:
-                    members = [member.id for member in group.members]
-                    role_name = group.name
+                    if group.external_id:
+                        members = [group.id]
+                        role_name = group.name
+                    else:
+                        members = [member.id for member in group.members]
+                        role_name = group.name
                     break
         elif iam_type == IamType.USER:
             for u in self.workspace.users:
