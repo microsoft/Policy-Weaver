@@ -9,7 +9,6 @@ This project provides a simple and efficient Python interface for querying Googl
 - Common query examples
 - Query parameter support for security
 - Automatic conversion to pandas DataFrame
-- Data upload from DataFrame
 
 ## 📋 Prerequisites
 
@@ -124,22 +123,6 @@ print("Available tables:", tables)
 # Get table information
 table_info = client.get_table_info("my-table")
 print(f"Number of rows: {table_info['num_rows']}")
-```
-
-### Data Upload
-
-```python
-import pandas as pd
-
-# Create a DataFrame
-df = pd.DataFrame({
-    'name': ['Alice', 'Bob', 'Charlie'],
-    'age': [25, 30, 35],
-    'city': ['Paris', 'Lyon', 'Marseille']
-})
-
-# Upload to BigQuery
-client.upload_dataframe(df, "my-new-table")
 ```
 
 ## 🏃‍♂️ Run Examples
