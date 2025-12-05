@@ -1,40 +1,39 @@
-<<<<<<< HEAD
-# Projet Python BigQuery
+# Python BigQuery Project
 
-Ce projet fournit une interface Python simple et efficace pour interroger Google BigQuery sur Google Cloud Platform.
+This project provides a simple and efficient Python interface for querying Google BigQuery on Google Cloud Platform.
 
-## 🚀 Fonctionnalités
+## 🚀 Features
 
-- Client BigQuery avec gestion d'erreurs robuste
-- Configuration centralisée via variables d'environnement
-- Exemples de requêtes courantes
-- Support des paramètres de requête pour la sécurité
-- Conversion automatique vers pandas DataFrame
-- Upload de données depuis DataFrame
+- BigQuery client with robust error handling
+- Centralized configuration via environment variables
+- Common query examples
+- Query parameter support for security
+- Automatic conversion to pandas DataFrame
+- Data upload from DataFrame
 
-## 📋 Prérequis
+## 📋 Prerequisites
 
 - Python 3.8+
-- Compte Google Cloud Platform avec BigQuery activé
-- Fichier de clés de service GCP (optionnel si ADC configuré)
+- Google Cloud Platform account with BigQuery enabled
+- GCP service account key file (optional if ADC configured)
 
 ## 🔧 Installation
 
-1. **Cloner le projet et installer les dépendances :**
+1. **Clone the project and install dependencies:**
 
 ```bash
 pip install -r requirements.txt
 ```
 
-2. **Configurer les variables d'environnement :**
+2. **Configure environment variables:**
 
-Copiez le fichier `.env.example` vers `.env` et remplissez vos informations :
+Copy the `.env.example` file to `.env` and fill in your information:
 
 ```bash
 cp .env.example .env
 ```
 
-Éditez le fichier `.env` :
+Edit the `.env` file:
 
 ```
 GOOGLE_APPLICATION_CREDENTIALS=path/to/your/service-account-key.json
@@ -44,45 +43,45 @@ BQ_LOCATION=US
 BQ_JOB_TIMEOUT=300
 ```
 
-## 🔑 Authentification
+## 🔑 Authentication
 
-### Option 1: Fichier de clés de service
-1. Créez un compte de service dans Google Cloud Console
-2. Téléchargez le fichier JSON des clés
-3. Définissez `GOOGLE_APPLICATION_CREDENTIALS` avec le chemin vers ce fichier
+### Option 1: Service Account Key File
+1. Create a service account in Google Cloud Console
+2. Download the JSON key file
+3. Set `GOOGLE_APPLICATION_CREDENTIALS` with the path to this file
 
 ### Option 2: Application Default Credentials (ADC)
-1. Installez Google Cloud CLI
-2. Exécutez `gcloud auth application-default login`
-3. Laissez `GOOGLE_APPLICATION_CREDENTIALS` vide
+1. Install Google Cloud CLI
+2. Run `gcloud auth application-default login`
+3. Leave `GOOGLE_APPLICATION_CREDENTIALS` empty
 
-## 📁 Structure du projet
+## 📁 Project Structure
 
 ```
 ├── src/
-│   ├── config.py              # Configuration de l'application
-│   ├── bigquery_client.py     # Client principal BigQuery
-│   └── queries.py             # Exemples de requêtes SQL
+│   ├── config.py              # Application configuration
+│   ├── bigquery_client.py     # Main BigQuery client
+│   └── queries.py             # SQL query examples
 ├── examples/
-│   └── basic_usage.py         # Exemple d'utilisation
-├── requirements.txt           # Dépendances Python
-├── .env.example              # Modèle de configuration
-├── .gitignore                # Fichiers à ignorer par Git
-└── README.md                 # Cette documentation
+│   └── basic_usage.py         # Usage example
+├── requirements.txt           # Python dependencies
+├── .env.example              # Configuration template
+├── .gitignore                # Files to ignore by Git
+└── README.md                 # This documentation
 ```
 
-## 🎯 Utilisation
+## 🎯 Usage
 
-### Exemple de base
+### Basic Example
 
 ```python
 from src.bigquery_client import BigQueryClient
 from src.config import Config
 
-# Initialiser le client
+# Initialize client
 client = BigQueryClient()
 
-# Exécuter une requête
+# Execute a query
 df = client.execute_query("""
     SELECT name, COUNT(*) as count
     FROM `my-project.my-dataset.my-table`
@@ -94,12 +93,12 @@ df = client.execute_query("""
 print(df)
 ```
 
-### Requête avec paramètres
+### Parameterized Query
 
 ```python
 from google.cloud import bigquery
 
-# Requête sécurisée avec paramètres
+# Secure query with parameters
 query = """
     SELECT *
     FROM `my-project.my-dataset.my-table`
@@ -115,83 +114,84 @@ parameters = [
 df = client.execute_query(query, parameters)
 ```
 
-### Lister les tables
+### List Tables
 
 ```python
-# Lister toutes les tables du dataset
+# List all tables in the dataset
 tables = client.list_tables()
-print("Tables disponibles:", tables)
+print("Available tables:", tables)
 
-# Obtenir des informations sur une table
+# Get table information
 table_info = client.get_table_info("my-table")
-print(f"Nombre de lignes: {table_info['num_rows']}")
+print(f"Number of rows: {table_info['num_rows']}")
 ```
 
-### Upload de données
+### Data Upload
 
 ```python
 import pandas as pd
 
-# Créer un DataFrame
+# Create a DataFrame
 df = pd.DataFrame({
     'name': ['Alice', 'Bob', 'Charlie'],
     'age': [25, 30, 35],
     'city': ['Paris', 'Lyon', 'Marseille']
 })
 
-# Uploader vers BigQuery
+# Upload to BigQuery
 client.upload_dataframe(df, "my-new-table")
 ```
 
-## 🏃‍♂️ Exécuter les exemples
+## 🏃‍♂️ Run Examples
 
 ```bash
 python examples/basic_usage.py
 ```
 
-## ⚡ Bonnes pratiques
+## ⚡ Best Practices
 
-1. **Sécurité** : Utilisez toujours des paramètres pour les requêtes avec des valeurs dynamiques
-2. **Coûts** : Limitez vos requêtes avec `LIMIT` et filtres appropriés
-3. **Performance** : Utilisez la localisation de dataset appropriée
-4. **Monitoring** : Surveillez vos logs pour détecter les erreurs
+1. **Security**: Always use parameters for queries with dynamic values
+2. **Costs**: Limit your queries with `LIMIT` and appropriate filters
+3. **Performance**: Use appropriate dataset location
+4. **Monitoring**: Monitor your logs to detect errors
 
-## 🔧 Configuration avancée
+## 🔧 Advanced Configuration
 
-### Timeout des requêtes
-Modifiez `BQ_JOB_TIMEOUT` dans votre fichier `.env` pour ajuster le timeout (en secondes).
+### Query Timeout
+Modify `BQ_JOB_TIMEOUT` in your `.env` file to adjust the timeout (in seconds).
 
-### Localisation des données
-Définissez `BQ_LOCATION` selon la région de vos datasets (US, EU, etc.).
+### Data Location
+Set `BQ_LOCATION` according to your dataset region (US, EU, etc.).
 
-## 🐛 Dépannage
+## 🐛 Troubleshooting
 
-### Erreur d'authentification
-- Vérifiez que votre fichier de clés de service est correct
-- Ou configurez ADC avec `gcloud auth application-default login`
+### Authentication Error
+- Verify that your service account key file is correct
+- Or configure ADC with `gcloud auth application-default login`
 
-### Erreur de permissions
-- Assurez-vous que votre compte de service a les permissions BigQuery appropriées
-- Rôles recommandés : `BigQuery User`, `BigQuery Data Viewer`, `BigQuery Data Editor`
+### Permission Error
+- Ensure your service account has appropriate BigQuery permissions
+- Recommended roles: `BigQuery User`, `BigQuery Data Viewer`, `BigQuery Data Editor`
 
-### Erreur de projet/dataset
-- Vérifiez que `PROJECT_ID` et `DATASET_ID` sont corrects dans votre `.env`
-- Assurez-vous que le dataset existe dans votre projet
+### Project/Dataset Error
+- Verify that `PROJECT_ID` and `DATASET_ID` are correct in your `.env`
+- Ensure the dataset exists in your project
 
 ## 📚 Documentation
 
-- [Documentation BigQuery](https://cloud.google.com/bigquery/docs)
-- [Client Python BigQuery](https://googleapis.dev/python/bigquery/latest/)
-- [Documentation pandas](https://pandas.pydata.org/docs/)
+- [BigQuery Documentation](https://cloud.google.com/bigquery/docs)
+- [BigQuery Python Client](https://googleapis.dev/python/bigquery/latest/)
+- [pandas Documentation](https://pandas.pydata.org/docs/)
 
-## 🤝 Contribution
+## 🤝 Contributing
 
-Les contributions sont les bienvenues ! N'hésitez pas à ouvrir une issue ou une pull request.
+Contributions are welcome! Feel free to open an issue or pull request.
 
-## 📄 Licence
+## 📄 License
 
-Ce projet est sous licence MIT. Voir le fichier `LICENSE` pour plus de détails.
-=======
+This project is under MIT license. See the `LICENSE` file for more details.
+
+---
   <p align="center">
   <img src="./assets/policyweaver.png" alt="Policy Weaver icon" width="200"/>
 </p>
