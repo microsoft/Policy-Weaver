@@ -530,7 +530,7 @@ class SnowflakeAPIClient:
                                         )
             self.masking_policies.append(mp)
   
-            query = f"""SELECT COLUMN_NAME FROM SNOWFLAKE.ACCOUNT_USAGE.COLUMNS WHERE TABLE_CATALOG = '{mp.database_name}' AND TABLE_SCHEMA = '{mp.schema_name}' AND TABLE_NAME = '{mp.table_name}';"""
+            query = f"""SELECT COLUMN_NAME FROM SNOWFLAKE.ACCOUNT_USAGE.COLUMNS WHERE TABLE_CATALOG = '{mp.database_name}' AND TABLE_SCHEMA = '{mp.schema_name}' AND TABLE_NAME = '{mp.table_name}'  AND DELETED is null;"""
             columns = self.__run_query__(query, columns=["COLUMN_NAME"])
             column_names = [c["COLUMN_NAME"] for c in columns]
             self.tables_with_masks.append(SnowflakeTableWithPolicy(
