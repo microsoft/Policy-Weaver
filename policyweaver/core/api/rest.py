@@ -22,8 +22,13 @@ class RestAPIProxy:
         """
         self.logger = logging.getLogger("POLICY_WEAVER")
         self.base_url = base_url
-        self.headers = headers
         self.weaver_type = weaver_type if weaver_type else "UNKNOWN"
+
+        # Initialize headers with User-Agent
+        if headers is None:
+            headers = {}
+        headers['User-Agent'] = f'PolicyWeaver/{self.weaver_type}'
+        self.headers = headers
 
     def get(self, endpoint, params=None, headers=None):
         """
