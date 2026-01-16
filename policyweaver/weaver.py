@@ -592,8 +592,11 @@ class WeaverAgent:
     def __generate_rls_value__(schema_name:str, table_name:str, filter_condition:str) -> str:
 
         start = f"SELECT * FROM {schema_name}.{table_name}"
-        if filter_condition == "true":
-            return False
+        filter_condition = filter_condition.replace("!=", "<>")
+        if filter_condition.replace(" ", "").lower() == "true":
+            return "true"
+        elif filter_condition.replace(" ", "").lower() == "false":
+            return "false"
         else:
             return f"{start} WHERE {filter_condition}"
 
@@ -676,7 +679,10 @@ class WeaverAgent:
                     table_name=rc.table_name,
                     filter_condition=rc.filter_condition
                 )
-                if not value:
+                if value=="true":
+                    continue
+                if value=="false":
+                    tables_with_all_rows_denied.append(table_path)
                     continue
 
                 rowconstraints.append(RowConstraint(

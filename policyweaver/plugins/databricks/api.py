@@ -434,7 +434,7 @@ class DatabricksAPIClient:
         result = ColumnMaskExtraction(column_mask_type=ColumnMaskType.UNSUPPORTED)
                 
         definition = sql_definition.replace("\n", " ").replace("\r", " ").replace(" ", "")
-        if not(definition[:8] == "CASEWHEN" and definition[8:31] == "is_account_group_member"):
+        if not(definition[:8] == "CASEWHEN" and definition[8:31].lower() == "is_account_group_member"):
             self.logger.warning("Unexpected format: does not start with 'CASE WHEN is_account_group_member'")
             return result
         group_name = definition[32:].split(")")[0].replace("'", "").replace('"', '')
@@ -486,8 +486,9 @@ class DatabricksAPIClient:
             - filter_type: The type of filter logic
         """
         result = RowFilterDetails(groups=[], default_value=None, row_filter_type=RowFilterType.EXPLICIT_GROUP_MEMBERSHIP)
-        pattern = r"IS_ACCOUNT_GROUP_MEMBER\('([^']+)'\)THEN([^W]+?)(?:WHEN|ELSE)"
-        
+        #pattern = r"IS_ACCOUNT_GROUP_MEMBER\('([^']+)'\)THEN([^W]+?)(?:WHEN|ELSE)"
+        pattern = r"IS_ACCOUNT_GROUP_MEMBER\('([^']+)'\)\s*THEN\s*(.+?)(?=\s*WHEN|\s*ELSE)"        
+
         matches = re.findall(pattern, sql_definition, re.IGNORECASE)
         
         for match in matches:
@@ -563,13 +564,14 @@ class DatabricksAPIClient:
 
         
         result = RowFilterDetails(row_filter_type=RowFilterType.UNSUPPORTED)
-        definition = sql_definition.replace("\n", " ").replace("\r", " ").replace(" ", "") 
-        if not definition.startswith("IF(IS_ACCOUNT_GROUP_MEMBER(") and not definition.startswith("CASEWHENIS_ACCOUNT_GROUP_MEMBER("):
+        sql_definition = sql_definition.replace("\n", " ").replace("\r", " ")
+        definition = sql_definition.replace(" ", "") 
+        if not definition.upper().startswith("IF(IS_ACCOUNT_GROUP_MEMBER(") and not definition.upper().startswith("CASEWHENIS_ACCOUNT_GROUP_MEMBER("):
             self.logger.warning("Unexpected format: does not start with 'IF(IS_ACCOUNT_GROUP_MEMBER(' or 'CASEWHENIS_ACCOUNT_GROUP_MEMBER('")
             return result
 
-        if definition.startswith("CASEWHENIS_ACCOUNT_GROUP_MEMBER("):
-            result_ = self.__extract_case_when_logic_row_filter__(definition)
+        if definition.upper().startswith("CASEWHENIS_ACCOUNT_GROUP_MEMBER("):
+            result_ = self.__extract_case_when_logic_row_filter__(sql_definition)
         else:
             result_ = self.__extract_if_logic_row_filter__(definition)
         
