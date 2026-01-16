@@ -527,7 +527,7 @@ class DatabricksAPIClient:
         
         group_name = definition[27:].split("'")[1]
         start = f"IF(IS_ACCOUNT_GROUP_MEMBER('{group_name}'),"
-        if not definition.startswith(start):
+        if not definition.upper().startswith(start.upper()):
             self.logger.warning("Unexpected format: does not match expected start")
             return result
         condition_for_group, condition_for_others = definition[len(start):].split(",")
