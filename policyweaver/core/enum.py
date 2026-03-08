@@ -81,6 +81,7 @@ class PolicyWeaverConnectorType(str, CommonBaseEnum):
     UNITY_CATALOG = "UNITY_CATALOG"
     SNOWFLAKE = "SNOWFLAKE"
     BIGQUERY = "BIGQUERY"
+    DATAVERSE = "DATAVERSE"
 
 class FabricPolicyAccessType(str, CommonBaseEnum):
     """
