@@ -6,3 +6,5 @@ policyweaver.plugins
    :caption: Contents:
 
    policyweaver.plugins.databricks
+   policyweaver.plugins.dataverse
+   policyweaver.plugins.snowflake

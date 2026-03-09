@@ -113,3 +113,9 @@ class Configuration:
             config.snowflake.user_name = get_secret(config.snowflake.user_name, config_name="snowflake user_name")
             config.snowflake.password = get_secret(config.snowflake.password, config_name="snowflake password")
 
+        if hasattr(config, 'dataverse') and config.dataverse is not None:
+            config.dataverse.environment_url = get_secret(
+                config.dataverse.environment_url,
+                config_name="dataverse.environment_url"
+            )
+
