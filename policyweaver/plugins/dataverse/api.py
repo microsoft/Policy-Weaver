@@ -1,6 +1,7 @@
 import logging
 import json
 import os
+import time
 from typing import List, Dict, Any
 
 import requests
@@ -28,20 +29,47 @@ class DataverseAPIClient:
     role privileges, field-level security profiles, and their assignments.
     """
 
-    DATAVERSE_SCOPE = "https://dynamics.microsoft.com/.default"
+    DEFAULT_API_VERSION = "v9.2"
     READ_PRIVILEGE_PREFIX = "prvRead"
     READ_ACCESS_RIGHT = 1  # ReadAccess bit in Dataverse privilege access rights
 
     def __init__(self):
         self.logger = logging.getLogger("POLICY_WEAVER")
         self.base_url = os.environ["DATAVERSE_ENVIRONMENT_URL"].rstrip("/")
-        self.api_url = f"{self.base_url}/api/data/v9.2"
+        self.dataverse_scope = f"{self.base_url}/.default"
+        self.api_version = os.getenv("DATAVERSE_API_VERSION", self.DEFAULT_API_VERSION)
+        self.api_url = f"{self.base_url}/api/data/{self.api_version}"
         self.__token = None
+        self.__token_expires_on = 0
+
+    def _get_access_token(self, force_refresh: bool = False) -> str:
+        """Get a cached access token and refresh before expiry when needed."""
+        refresh_window_seconds = 120
+        now = int(time.time())
+
+        if (
+            force_refresh
+            or not self.__token
+            or now >= (self.__token_expires_on - refresh_window_seconds)
+        ):
+            token = ServicePrincipal.Credential.get_token(self.dataverse_scope)
+            self.__token = token.token
+            self.__token_expires_on = token.expires_on
+
+        return self.__token
+
+    def _request_get(self, url: str) -> requests.Response:
+        """Issue GET with a single token-refresh retry when Dataverse returns 401."""
+        response = requests.get(url, headers=self._headers)
+        if response.status_code == 401:
+            self._get_access_token(force_refresh=True)
+            response = requests.get(url, headers=self._headers)
+        return response
 
     @property
     def _headers(self) -> dict:
         if not self.__token:
-            self.__token = ServicePrincipal.get_token(self.DATAVERSE_SCOPE)
+            self._get_access_token()
         return {
             "Authorization": f"Bearer {self.__token}",
             "Accept": "application/json",
@@ -54,7 +82,7 @@ class DataverseAPIClient:
         """Fetch all pages of an OData collection."""
         results = []
         while url:
-            response = requests.get(url, headers=self._headers)
+            response = self._request_get(url)
             response.raise_for_status()
             data = response.json()
             results.extend(data.get("value", []))
@@ -254,7 +282,7 @@ class DataverseAPIClient:
             "&$select=depth"
         )
         try:
-            response = requests.get(url, headers=self._headers)
+            response = self._request_get(url)
             if response.status_code == 200:
                 data = response.json()
                 values = data.get("value", [])
