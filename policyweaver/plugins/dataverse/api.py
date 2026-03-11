@@ -5,6 +5,8 @@ import time
 from typing import List, Dict, Any
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from pydantic.json import pydantic_encoder
 
 from policyweaver.core.auth import ServicePrincipal
@@ -42,6 +44,18 @@ class DataverseAPIClient:
         self.__token = None
         self.__token_expires_on = 0
 
+        self.session = requests.Session()
+        retry = Retry(
+            total=5,
+            connect=5,
+            read=5,
+            backoff_factor=1.0,
+            status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods=frozenset(["GET"]),
+        )
+        self.session.mount("https://", HTTPAdapter(max_retries=retry))
+        self.timeout = (10, 120)
+        
     def _get_access_token(self, force_refresh: bool = False) -> str:
         """Get a cached access token and refresh before expiry when needed."""
         refresh_window_seconds = 120
@@ -60,10 +74,10 @@ class DataverseAPIClient:
 
     def _request_get(self, url: str) -> requests.Response:
         """Issue GET with a single token-refresh retry when Dataverse returns 401."""
-        response = requests.get(url, headers=self._headers)
+        response = self.session.get(url, headers=self._headers, timeout=self.timeout)
         if response.status_code == 401:
             self._get_access_token(force_refresh=True)
-            response = requests.get(url, headers=self._headers)
+            response = self.session.get(url, headers=self._headers, timeout=self.timeout)
         return response
 
     @property
@@ -142,12 +156,14 @@ class DataverseAPIClient:
         return env
 
     def __get_table_filter__(self, source: Source) -> List[str]:
-        """Build a list of table names from source config for filtering."""
-        tables = []
+        """Build a normalized list of table names from source config for filtering."""
+        tables: List[str] = []
         if source and source.schemas:
             for schema in source.schemas:
                 if schema.tables:
-                    tables.extend(schema.tables)
+                    for t in schema.tables:
+                        if t:
+                            tables.append(str(t).strip().lower())
         return tables if tables else None
 
     def __get_users__(self) -> List[DataverseUser]:
@@ -155,14 +171,12 @@ class DataverseAPIClient:
         url = (
             f"{self.api_url}/systemusers"
             "?$select=systemuserid,fullname,internalemailaddress,azureactivedirectoryobjectid,isdisabled"
-            "&$filter=isdisabled eq false and internalemailaddress ne null"
+            "&$filter=isdisabled eq false and azureactivedirectoryobjectid ne null"
         )
         records = self._get_paged(url)
         users = []
         for r in records:
             email = r.get("internalemailaddress", "")
-            if not email or email.strip() == "":
-                continue
             users.append(
                 DataverseUser(
                     id=r["systemuserid"],
@@ -252,9 +266,9 @@ class DataverseAPIClient:
                 # Extract entity name from privilege name (e.g., 'prvReadaccount' -> 'account')
                 entity_name = None
                 if priv_name.lower().startswith("prvread"):
-                    entity_name = priv_name[7:]  # len("prvRead") = 7
+                    entity_name = priv_name[7:].lower()  # len("prvRead") = 7
 
-                depth = self.__get_privilege_depth__(role.id, r["privilegeid"])
+                depth = "Global"
 
                 all_privileges.append(
                     DataverseRolePrivilege(
@@ -297,19 +311,22 @@ class DataverseAPIClient:
     def __get_user_role_assignments__(self) -> Dict[str, List[str]]:
         """
         Get mapping of user IDs to their assigned security role IDs.
-        Uses systemuserroles_association.
+        Uses systemuserroles_association navigation property.
         """
         url = (
-            f"{self.api_url}/systemuserroles"
-            "?$select=systemuserid,roleid"
+            f"{self.api_url}/systemusers"
+            "?$select=systemuserid"
+            "&$expand=systemuserroles_association($select=roleid)"
+            "&$filter=isdisabled eq false"
         )
         records = self._get_paged(url)
         assignments: Dict[str, List[str]] = {}
         for r in records:
             user_id = r.get("systemuserid")
-            role_id = r.get("roleid")
-            if user_id and role_id:
-                assignments.setdefault(user_id, []).append(role_id)
+            roles = r.get("systemuserroles_association", [])
+            role_ids = [x.get("roleid") for x in roles if x.get("roleid")]
+            if user_id and role_ids:
+                assignments[user_id] = role_ids
 
         self.logger.debug(f"User-Role Assignments: {len(assignments)} users mapped")
         return assignments
@@ -317,19 +334,21 @@ class DataverseAPIClient:
     def __get_team_role_assignments__(self) -> Dict[str, List[str]]:
         """
         Get mapping of team IDs to their assigned security role IDs.
-        Uses teamroles_association.
+        Uses teamroles_association navigation property.
         """
         url = (
-            f"{self.api_url}/teamroles"
-            "?$select=teamid,roleid"
+            f"{self.api_url}/teams"
+            "?$select=teamid"
+            "&$expand=teamroles_association($select=roleid)"
         )
         records = self._get_paged(url)
         assignments: Dict[str, List[str]] = {}
         for r in records:
             team_id = r.get("teamid")
-            role_id = r.get("roleid")
-            if team_id and role_id:
-                assignments.setdefault(team_id, []).append(role_id)
+            roles = r.get("teamroles_association", [])
+            role_ids = [x.get("roleid") for x in roles if x.get("roleid")]
+            if team_id and role_ids:
+                assignments[team_id] = role_ids
 
         self.logger.debug(f"Team-Role Assignments: {len(assignments)} teams mapped")
         return assignments
@@ -409,6 +428,7 @@ class DataverseAPIClient:
         """
         permissions = []
         role_entity_map = self.__build_role_entity_map__(env.role_privileges, env.security_roles)
+        table_filter_set = set(table_filter) if table_filter else None
 
         # User direct role assignments
         for user_id, role_ids in env.user_role_assignments.items():
@@ -420,7 +440,7 @@ class DataverseAPIClient:
                     continue
                 role_name, entities = role_entity_map[role_id]
                 for entity_name, depth in entities.items():
-                    if table_filter and entity_name not in table_filter:
+                    if table_filter_set and entity_name.lower() not in table_filter_set:
                         continue
                     permissions.append(
                         DataverseTablePermission(
@@ -443,7 +463,7 @@ class DataverseAPIClient:
                     continue
                 role_name, entities = role_entity_map[role_id]
                 for entity_name, depth in entities.items():
-                    if table_filter and entity_name not in table_filter:
+                    if table_filter_set and entity_name.lower() not in table_filter_set:
                         continue
                     permissions.append(
                         DataverseTablePermission(
