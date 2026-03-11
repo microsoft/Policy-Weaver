@@ -410,3 +410,4 @@ build/*
 
 # Docs
 docs/build/*
+configdataverse.yaml
