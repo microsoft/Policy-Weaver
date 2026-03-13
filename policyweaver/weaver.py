@@ -384,9 +384,14 @@ class WeaverAgent:
         Returns:
             str: The table path in the format "Tables/{schema}/{table}" if mapped, otherwise None.
         """
+        schema_nm = schema.strip() if isinstance(schema, str) else schema
+
         if not table:
-            if schema:
-                return f"Tables/{schema}"
+            if self.config.type == PolicyWeaverConnectorType.DATAVERSE:
+                # Dataverse table scopes are table-based and do not use schema path segments.
+                return "*"
+            if schema_nm:
+                return f"Tables/{schema_nm}"
             return "*"
 
         if self.config.mapped_items:
@@ -399,7 +404,12 @@ class WeaverAgent:
             matched_tbl = None
 
         table_nm = table if not matched_tbl else matched_tbl.mirror_table_name
-        table_path = f"Tables/{schema}/{table_nm}"         
+
+        if self.config.type == PolicyWeaverConnectorType.DATAVERSE:
+            # Dataverse paths are /Tables/{table} (no /{schema}/ segment).
+            table_path = f"Tables/{table_nm}"
+        else:
+            table_path = f"Tables/{schema_nm}/{table_nm}"
 
         return table_path
 
