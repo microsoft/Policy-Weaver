@@ -190,6 +190,8 @@ https://github.com/user-attachments/assets/4de93aa3-e6c2-4c5b-b220-b30f6bfafd2f
 
 ## :thread: ADLS Gen2 specific setup
 
+> :warning: **Beta** — The ADLS Gen2 plugin is currently in **beta**. Features and configuration may change in future releases. Please report any issues via our [feedback form](https://aka.ms/pwfeedback).
+
 ### Azure Data Lake Storage Gen2 Configuration
 Policy Weaver can read POSIX ACLs from an Azure Data Lake Storage Gen2 account with **Hierarchical Namespace (HNS)** enabled and map them to OneLake Security roles in Microsoft Fabric.
 
