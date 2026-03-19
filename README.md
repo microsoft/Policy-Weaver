@@ -39,7 +39,7 @@ A Python-based accelerator designed to automate the synchronization of security 
 - **Microsoft Fabric Support**: Direct integration with Fabric Mirrored Databases/Catalogs and OneLake Security.
 - **Runs anywhere**: It can be run within Fabric Notebook or from anywhere with a Python runtime.
 - **Effective Policies**: Resolves effective read privileges automatically, traversing nested groups and roles as required.
-- **Pluggable Framework**: Supports Azure Databricks and Snowflake policies, with more connectors planned.
+- **Pluggable Framework**: Supports Azure Databricks, Snowflake, and Azure Data Lake Storage Gen2 policies, with more connectors planned.
 - **Secure**: Can use Azure Key Vault to securely manage sensitive information like Service Principal credentials and API tokens.
 
 
@@ -49,6 +49,7 @@ A Python-based accelerator designed to automate the synchronization of security 
   - [General Prerequisites](#clipboard-general-prerequisites)
   - [Databricks specific setup](#thread-databricks-specific-setup)
   - [Snowflake specific setup](#thread-snowflake-specific-setup)
+  - [ADLS Gen2 specific setup](#thread-adls-gen2-specific-setup)
 - [Config File values](#books-config-file-values)
 - [Column Level Security](#books-column-level-security)
 - [Row Level Security](#books-row-level-security)
@@ -63,7 +64,7 @@ $ pip install policy-weaver
 
 # :rocket: Getting Started
 
-Follow the General Prerequisites and Installation steps below [here](#clipboard-general-prerequisites). Then, depending on your source catalog, follow the specific setup instructions for either [Databricks](#thread-databricks-specific-setup) or [Snowflake](#thread-snowflake-specific-setup).
+Follow the General Prerequisites and Installation steps below [here](#clipboard-general-prerequisites). Then, depending on your source catalog, follow the specific setup instructions for [Databricks](#thread-databricks-specific-setup), [Snowflake](#thread-snowflake-specific-setup), or [ADLS Gen2](#thread-adls-gen2-specific-setup).
 If you run into any issues, wish for new features or let us know that you like the accelerator, let us know via our feedback form [https://aka.ms/pwfeedback](https://aka.ms/pwfeedback)
 
 ## :clipboard: General Prerequisites
@@ -187,6 +188,102 @@ All done! You can now check your Microsoft Fabric Mirrored Snowflake Warehouse´
 https://github.com/user-attachments/assets/4de93aa3-e6c2-4c5b-b220-b30f6bfafd2f
 
 
+## :thread: ADLS Gen2 specific setup
+
+### Azure Data Lake Storage Gen2 Configuration
+Policy Weaver can read POSIX ACLs from an Azure Data Lake Storage Gen2 account with **Hierarchical Namespace (HNS)** enabled and map them to OneLake Security roles in Microsoft Fabric.
+
+The ADLS Gen2 plugin scans containers and directories, parses the POSIX ACL entries for named users and groups, and produces role-based or table-based permission scopes. Each Entra security group with read access becomes a Fabric data access role whose display name matches the group name.
+
+#### Prerequisites
+- An **ADLS Gen2** storage account with **Hierarchical Namespace enabled** (required for POSIX ACLs).
+- A **Lakehouse** or **Mirrored Database** in Microsoft Fabric with tables whose schema/table layout corresponds to your ADLS folder structure. Enable OneLake data access by opening the item in the Fabric UI and clicking "Manage OneLake data access".
+- The **Service Principal** used by Policy Weaver requires:
+  - **Storage Blob Data Reader** (or higher) on the ADLS Gen2 storage account — to read directory ACLs.
+  - **Admin** on the Fabric workspace containing the target lakehouse.
+  - Microsoft Graph API application permissions:
+    - `Group.Read.All` — to resolve Entra group display names for role naming.
+    - `Directory.Read.All` — to look up directory objects by Object ID.
+  - Admin consent must be granted for these Graph permissions. Use the Azure Portal or:
+    ```bash
+    az ad app permission admin-consent --id <app-client-id>
+    ```
+    If admin-consent does not create the app-role assignments, grant them directly:
+    ```bash
+    az rest --method POST \
+      --url "https://graph.microsoft.com/v1.0/servicePrincipals/<sp-object-id>/appRoleAssignments" \
+      --body @role_grant.json
+    ```
+
+#### How it works
+1. **Scan** — The plugin recursively walks the ADLS container(s), collecting POSIX ACL entries for every directory and file.
+2. **Extract** — Named user and group ACL entries with read permission are normalised into grants.
+3. **Resolve** — Each principal's Object ID is resolved via Microsoft Graph to obtain the Entra group (or user) display name.
+4. **Map** — Grants are expanded to include all discovered sub-directories, parent-only paths are pruned (only leaf/table-level paths remain), and the result is mapped to role-based or table-based Fabric policies.
+5. **Sync** — Policies are pushed to the Fabric Data Access Roles API.
+
+#### Path mapping
+ADLS paths are mapped to Fabric `/Tables/<schema>/<table>` paths as follows:
+
+| ADLS path | Fabric path | Description |
+|-----------|-------------|-------------|
+| `/` (root) | `*` | Wildcard — access to everything |
+| `sales` | `/Tables/sales` | Schema-level access |
+| `sales/reports` | `/Tables/sales/reports` | Table-level access |
+
+When a principal has access to a parent directory, the plugin automatically expands the scope to include **all discovered sub-directories**. If a parent directory has children in the expanded set, the parent is pruned so that only leaf-level (table-level) paths appear in the final policy. A root-level grant (`/`) is simplified to the `*` wildcard.
+
+#### Update your Configuration file
+Create a YAML configuration file (e.g. `configadls.yaml`) with the following structure:
+
+```yaml
+keyvault:
+  use_key_vault: false
+  name: notapplicable
+  authentication_method: notapplicable
+fabric:
+  mirror_id: <lakehouse-or-mirror-item-id>
+  mirror_name: <item-name>
+  workspace_id: <fabric-workspace-id>
+  tenant_id: <entra-tenant-id>
+  fabric_role_suffix: PW
+  delete_default_reader_role: true
+  policy_mapping: role_based
+service_principal:
+  client_id: <sp-client-id>
+  client_secret: <sp-client-secret>
+  tenant_id: <entra-tenant-id>
+source:
+  name: <the name of the container>
+type: ADLS_GEN2
+adls:
+  account_url: https://<storage-account>.dfs.core.windows.net/
+  max_depth: -1                     # optional — -1 for unlimited depth
+```
+
+For ADLS Gen2 specifically, you will need to provide:
+
+- **source.name**: <the name of the container>
+- **account_url**: The ADLS Gen2 account URL, e.g. `https://mystorageaccount.dfs.core.windows.net/`
+- **max_depth** *(optional)*: Maximum directory recursion depth. `-1` means unlimited (default: `-1`).
+
+#### Run the Weaver!
+This is all the code you need. Just make sure Policy Weaver can access your YAML configuration file.
+```python
+# import the PolicyWeaver library
+from policyweaver.weaver import WeaverAgent
+from policyweaver.plugins.adls.model import AdlsSourceMap
+
+# Load config
+config = AdlsSourceMap.from_yaml("path_to_your_configadls.yaml")
+
+# Run the PolicyWeaver
+await WeaverAgent.run(config)
+```
+
+All done! You can now check your Microsoft Fabric Lakehouse's new OneLake Security policies.
+
+
 ## :books: Config File values
 
 Here ´s how the config.yaml should be adjusted to your environment.
@@ -221,7 +318,7 @@ Here ´s how the config.yaml should be adjusted to your environment.
   - name of the unity catalog or snowflake database
   - schemas: list of schemas to include. If not set, all schemas are included. For each schema you can give a list of tables which should be included. If not set all tables are included (see examples below)
 
-- type: either 'UNITY_CATALOG' for databricks or 'SNOWFLAKE' for snowflake
+- type: either 'UNITY_CATALOG' for databricks, 'SNOWFLAKE' for snowflake, or 'ADLS_GEN2' for Azure Data Lake Storage Gen2
 
 Here is an example config.yaml **NOT** using keyvault:
 
