@@ -67,4 +67,32 @@ class MicrosoftGraphClient:
         except APIError:
             self.logger.debug(f"MSFT GRAPH CLIENT {email} - USER NOT FOUND IN GRAPH API")
             return None
+
+    async def get_directory_object_by_id(self, object_id: str) -> dict:
+        """
+        Looks up a directory object (user or group) by its Object ID.
+        Tries groups first, then users.
+        Args:
+            object_id (str): The Azure AD Object ID.
+        Returns:
+            dict: A dict with 'display_name' and 'type' keys, or None if not found.
+        """
+        try:
+            group = await self.graph_client.groups.by_group_id(object_id).get()
+            if group:
+                self.logger.debug(f"MSFT GRAPH CLIENT {object_id} - {group.display_name} (group)")
+                return {'display_name': group.display_name, 'type': 'group'}
+        except APIError as e:
+            self.logger.debug(f"MSFT GRAPH CLIENT {object_id} - group lookup failed: {e.response_status_code} {e.message}")
+
+        try:
+            user = await self.graph_client.users.by_user_id(object_id).get()
+            if user:
+                self.logger.debug(f"MSFT GRAPH CLIENT {object_id} - {user.display_name} (user)")
+                return {'display_name': user.display_name, 'type': 'user'}
+        except APIError as e:
+            self.logger.debug(f"MSFT GRAPH CLIENT {object_id} - user lookup failed: {e.response_status_code} {e.message}")
+
+        self.logger.debug(f"MSFT GRAPH CLIENT {object_id} - DIRECTORY OBJECT NOT FOUND")
+        return None
        

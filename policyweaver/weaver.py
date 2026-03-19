@@ -14,6 +14,8 @@ from policyweaver.core.api.fabric import FabricAPI
 from policyweaver.core.api.microsoftgraph import MicrosoftGraphClient
 from policyweaver.plugins.databricks.client import DatabricksPolicyWeaver
 from policyweaver.plugins.snowflake.client import SnowflakePolicyWeaver
+from policyweaver.plugins.dataverse.client import DataversePolicyWeaver
+from policyweaver.plugins.adls.client import AdlsPolicyWeaver
 from policyweaver.models.fabric import (
     DataAccessPolicy,
     PolicyDecisionRule,
@@ -102,13 +104,20 @@ class WeaverAgent:
                 src = DatabricksPolicyWeaver(config)
             case PolicyWeaverConnectorType.SNOWFLAKE:
                 src = SnowflakePolicyWeaver(config)
+            case PolicyWeaverConnectorType.DATAVERSE:
+                src = DataversePolicyWeaver(config)
+            case PolicyWeaverConnectorType.ADLS_GEN2:
+                src = AdlsPolicyWeaver(config)
             case _:
                 pass
         
         logger.info(f"Running Policy Export for {config.type}: {config.source.name}...")
         policy_mapping = config.fabric.policy_mapping
 
-        policy_export = src.map_policy(policy_mapping)
+        if config.type == PolicyWeaverConnectorType.ADLS_GEN2:
+            policy_export = await src.map_policy(policy_mapping)
+        else:
+            policy_export = src.map_policy(policy_mapping)
         
         if policy_export:
             weaver.source_snapshot_handler(policy_export)
