@@ -239,8 +239,28 @@ class DataverseAPIClient:
     def __get_role_read_privileges__(self, roles: List[DataverseSecurityRole]) -> List[DataverseRolePrivilege]:
         """
         Retrieve role privileges and filter to only read-related privileges.
-        Uses the roleprivileges_association navigation property.
+        Uses roleprivileges_association for privilege metadata and
+        roleprivilegescollection for the privilege depth mask.
         """
+        DEPTH_MASK_MAP = {
+            1: "Basic",          # User/Team
+            2: "Local",          # Business Unit
+            4: "Deep",           # Parent: Business Unit
+            8: "Global",         # Organization
+        }
+
+        # Build a depth lookup from roleprivilegescollection (the intersect entity
+        # that holds privilegedepthmask). Keyed by (roleid, privilegeid).
+        depth_lookup: Dict[tuple, int] = {}
+        depth_url = f"{self.api_url}/roleprivilegescollection?$select=roleid,privilegeid,privilegedepthmask"
+        try:
+            depth_records = self._get_paged(depth_url)
+            for dr in depth_records:
+                key = (dr.get("roleid", ""), dr.get("privilegeid", ""))
+                depth_lookup[key] = dr.get("privilegedepthmask", 8)
+        except Exception as e:
+            self.logger.warning(f"Failed to fetch roleprivilegescollection for depth info: {e}")
+
         all_privileges = []
 
         for role in roles:
@@ -268,7 +288,13 @@ class DataverseAPIClient:
                 if priv_name.lower().startswith("prvread"):
                     entity_name = priv_name[7:].lower()  # len("prvRead") = 7
 
-                depth = "Global"
+                depth_mask = depth_lookup.get((role.id, r["privilegeid"]), 8)
+                depth = DEPTH_MASK_MAP.get(depth_mask, "Global")
+
+                if depth != "Global":
+                    # If depth is not Global, row level security applies
+                    # Not supporting row level security in this implementation, so skip these privileges
+                    continue
 
                 all_privileges.append(
                     DataverseRolePrivilege(
