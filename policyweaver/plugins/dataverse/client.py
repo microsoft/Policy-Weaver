@@ -118,7 +118,22 @@ class DataversePolicyWeaver(PolicyWeaverCore):
         - The principals (users/teams) assigned to that role
         - The table-level permission scopes (read)
         - Column constraints from field-level security
+        - Row constraints from BU depth (when enabled)
         """
+        if not(self.config.constraints and self.config.constraints.columns and self.config.constraints.columns.columnlevelsecurity):
+            self.logger.warning("Column level security is not enabled in the config.")
+            column_security = False
+        else:
+            self.logger.info("Column level security is enabled in the config.")
+            column_security = True
+
+        if not(self.config.constraints and self.config.constraints.rows and self.config.constraints.rows.rowlevelsecurity):
+            self.logger.warning("Row level security is not enabled in the config.")
+            row_security = False
+        else:
+            self.logger.info("Row level security is enabled in the config.")
+            row_security = True
+
         # Build (role instance + BU context) -> {principals, tables} mapping
         role_map: Dict[Tuple[str, str], Dict] = {}
         catalog_name = self.config.source.name
@@ -168,11 +183,11 @@ class DataversePolicyWeaver(PolicyWeaverCore):
             # Get column constraints from field-level security for the principals in this role
             column_constraints = self.__get_column_constraints_for_principals__(
                 data["principals"], data["tables"], catalog_name, schema_name
-            )
+            ) if column_security else []
 
             row_constraints = self.__get_row_constraints_for_role__(
                 data["perms"], catalog_name, schema_name
-            )
+            ) if row_security else []
 
             role_name_with_context = role_name
             if data["role_business_unit_id"]:
