@@ -20,6 +20,7 @@ class DataverseUser(CommonBaseModel):
     name: Optional[str] = Field(alias="name", default=None)
     email: Optional[str] = Field(alias="email", default=None)
     azure_ad_object_id: Optional[str] = Field(alias="azure_ad_object_id", default=None)
+    business_unit_id: Optional[str] = Field(alias="business_unit_id", default=None)
     is_disabled: Optional[bool] = Field(alias="is_disabled", default=False)
 
 
@@ -37,6 +38,7 @@ class DataverseTeam(CommonBaseModel):
     name: Optional[str] = Field(alias="name", default=None)
     team_type: Optional[int] = Field(alias="team_type", default=0)
     azure_ad_object_id: Optional[str] = Field(alias="azure_ad_object_id", default=None)
+    business_unit_id: Optional[str] = Field(alias="business_unit_id", default=None)
     member_ids: Optional[List[str]] = Field(alias="member_ids", default_factory=list)
 
 
@@ -49,6 +51,20 @@ class DataverseSecurityRole(CommonBaseModel):
     """
     id: Optional[str] = Field(alias="id", default=None)
     name: Optional[str] = Field(alias="name", default=None)
+    business_unit_id: Optional[str] = Field(alias="business_unit_id", default=None)
+
+
+class DataverseBusinessUnit(CommonBaseModel):
+    """
+    Represents a Dataverse business unit and its hierarchy relation.
+    Attributes:
+        id (Optional[str]): The businessunitid.
+        name (Optional[str]): The business unit name.
+        parent_business_unit_id (Optional[str]): The parent business unit ID.
+    """
+    id: Optional[str] = Field(alias="id", default=None)
+    name: Optional[str] = Field(alias="name", default=None)
+    parent_business_unit_id: Optional[str] = Field(alias="parent_business_unit_id", default=None)
 
 
 class DataverseRolePrivilege(CommonBaseModel):
@@ -120,9 +136,12 @@ class DataverseTablePermission(CommonBaseModel):
     table_name: Optional[str] = Field(alias="table_name", default=None)
     principal_id: Optional[str] = Field(alias="principal_id", default=None)
     principal_type: Optional[IamType] = Field(alias="principal_type", default=None)
+    principal_business_unit_id: Optional[str] = Field(alias="principal_business_unit_id", default=None)
     has_read: Optional[bool] = Field(alias="has_read", default=False)
     depth: Optional[str] = Field(alias="depth", default=None)
+    role_id: Optional[str] = Field(alias="role_id", default=None)
     role_name: Optional[str] = Field(alias="role_name", default=None)
+    role_business_unit_id: Optional[str] = Field(alias="role_business_unit_id", default=None)
 
 
 class DataverseEnvironment(CommonBaseModel):
@@ -140,6 +159,7 @@ class DataverseEnvironment(CommonBaseModel):
     """
     users: Optional[List[DataverseUser]] = Field(alias="users", default_factory=list)
     teams: Optional[List[DataverseTeam]] = Field(alias="teams", default_factory=list)
+    business_units: Optional[List[DataverseBusinessUnit]] = Field(alias="business_units", default_factory=list)
     security_roles: Optional[List[DataverseSecurityRole]] = Field(alias="security_roles", default_factory=list)
     role_privileges: Optional[List[DataverseRolePrivilege]] = Field(alias="role_privileges", default_factory=list)
     user_role_assignments: Optional[dict] = Field(alias="user_role_assignments", default_factory=dict)
@@ -157,6 +177,10 @@ class DataverseEnvironment(CommonBaseModel):
 
     def get_user_teams(self, user_id: str) -> List[DataverseTeam]:
         return [t for t in self.teams if user_id in (t.member_ids or [])]
+
+    def lookup_business_unit_by_id(self, business_unit_id: str) -> DataverseBusinessUnit:
+        business_unit = [b for b in self.business_units if b.id == business_unit_id]
+        return business_unit[0] if business_unit else None
 
 
 class DataverseSourceConfig(CommonBaseModel):

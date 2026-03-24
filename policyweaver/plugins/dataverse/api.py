@@ -13,6 +13,7 @@ from policyweaver.core.auth import ServicePrincipal
 from policyweaver.core.enum import IamType
 from policyweaver.models.config import Source
 from policyweaver.plugins.dataverse.model import (
+    DataverseBusinessUnit,
     DataverseUser,
     DataverseTeam,
     DataverseSecurityRole,
@@ -34,6 +35,8 @@ class DataverseAPIClient:
     DEFAULT_API_VERSION = "v9.2"
     READ_PRIVILEGE_PREFIX = "prvRead"
     READ_ACCESS_RIGHT = 1  # ReadAccess bit in Dataverse privilege access rights
+    DEPTH_MAP = {0: "Basic", 1: "Local", 2: "Deep", 3: "Global"}
+    DEPTH_RANK = {"Basic": 1, "Local": 2, "Deep": 3, "Global": 4}
 
     def __init__(self):
         self.logger = logging.getLogger("POLICY_WEAVER")
@@ -113,6 +116,10 @@ class DataverseAPIClient:
         """
         env = DataverseEnvironment()
 
+        self.logger.info("Fetching Dataverse business units...")
+        env.business_units = self.__get_business_units__()
+        self.logger.info(f"Found {len(env.business_units)} business units.")
+
         self.logger.info("Fetching Dataverse users...")
         env.users = self.__get_users__()
         self.logger.info(f"Found {len(env.users)} active users.")
@@ -170,8 +177,8 @@ class DataverseAPIClient:
         """Retrieve active (non-disabled) system users."""
         url = (
             f"{self.api_url}/systemusers"
-            "?$select=systemuserid,fullname,internalemailaddress,azureactivedirectoryobjectid,isdisabled"
-            "&$filter=isdisabled eq false and azureactivedirectoryobjectid ne null"
+            "?$select=systemuserid,fullname,internalemailaddress,azureactivedirectoryobjectid,isdisabled,_businessunitid_value"
+            "&$filter=isdisabled eq false"
         )
         records = self._get_paged(url)
         users = []
@@ -183,6 +190,7 @@ class DataverseAPIClient:
                     name=r.get("fullname"),
                     email=email,
                     azure_ad_object_id=r.get("azureactivedirectoryobjectid"),
+                    business_unit_id=r.get("_businessunitid_value"),
                     is_disabled=r.get("isdisabled", False),
                 )
             )
@@ -193,7 +201,7 @@ class DataverseAPIClient:
         """Retrieve teams from Dataverse."""
         url = (
             f"{self.api_url}/teams"
-            "?$select=teamid,name,teamtype,azureactivedirectoryobjectid"
+            "?$select=teamid,name,teamtype,azureactivedirectoryobjectid,_businessunitid_value"
         )
         records = self._get_paged(url)
         teams = [
@@ -202,6 +210,7 @@ class DataverseAPIClient:
                 name=r.get("name"),
                 team_type=r.get("teamtype", 0),
                 azure_ad_object_id=r.get("azureactivedirectoryobjectid"),
+                business_unit_id=r.get("_businessunitid_value"),
             )
             for r in records
         ]
@@ -227,14 +236,36 @@ class DataverseAPIClient:
 
     def __get_security_roles__(self) -> List[DataverseSecurityRole]:
         """Retrieve all security roles."""
-        url = f"{self.api_url}/roles?$select=roleid,name"
+        url = f"{self.api_url}/roles?$select=roleid,name,_businessunitid_value"
         records = self._get_paged(url)
         roles = [
-            DataverseSecurityRole(id=r["roleid"], name=r.get("name"))
+            DataverseSecurityRole(
+                id=r["roleid"],
+                name=r.get("name"),
+                business_unit_id=r.get("_businessunitid_value"),
+            )
             for r in records
         ]
         self.logger.debug(f"Dataverse Security Roles: {json.dumps(roles, default=pydantic_encoder, indent=4)}")
         return roles
+
+    def __get_business_units__(self) -> List[DataverseBusinessUnit]:
+        """Retrieve all business units and hierarchy relations."""
+        url = (
+            f"{self.api_url}/businessunits"
+            "?$select=businessunitid,name,_parentbusinessunitid_value"
+            "&$filter=isdisabled eq false"
+        )
+        records = self._get_paged(url)
+        return [
+            DataverseBusinessUnit(
+                id=r.get("businessunitid"),
+                name=r.get("name"),
+                parent_business_unit_id=r.get("_parentbusinessunitid_value"),
+            )
+            for r in records
+            if r.get("businessunitid")
+        ]
 
     def __get_role_read_privileges__(self, roles: List[DataverseSecurityRole]) -> List[DataverseRolePrivilege]:
         """
@@ -266,7 +297,7 @@ class DataverseAPIClient:
         for role in roles:
             url = (
                 f"{self.api_url}/roles({role.id})/roleprivileges_association"
-                "?$select=privilegeid,name,accessright"
+                "?$select=privilegeid,name,accessright,depth"
             )
             try:
                 records = self._get_paged(url)
@@ -288,13 +319,7 @@ class DataverseAPIClient:
                 if priv_name.lower().startswith("prvread"):
                     entity_name = priv_name[7:].lower()  # len("prvRead") = 7
 
-                depth_mask = depth_lookup.get((role.id, r["privilegeid"]), 8)
-                depth = DEPTH_MASK_MAP.get(depth_mask, "Global")
-
-                if depth != "Global":
-                    # If depth is not Global, row level security applies
-                    # Not supporting row level security in this implementation, so skip these privileges
-                    continue
+                depth = self.__normalize_depth__(r.get("depth"))
 
                 all_privileges.append(
                     DataverseRolePrivilege(
@@ -309,6 +334,21 @@ class DataverseAPIClient:
                 )
 
         return all_privileges
+
+    def __normalize_depth__(self, raw_depth: Any) -> str:
+        """Normalize Dataverse privilege depth to one of Basic/Local/Deep/Global."""
+        if isinstance(raw_depth, str):
+            depth = raw_depth.strip().title()
+            if depth in ["Basic", "Local", "Deep", "Global"]:
+                return depth
+            if raw_depth.isdigit():
+                return self.DEPTH_MAP.get(int(raw_depth), "Global")
+            return "Global"
+
+        if isinstance(raw_depth, int):
+            return self.DEPTH_MAP.get(raw_depth, "Global")
+
+        return "Global"
 
     def __get_privilege_depth__(self, role_id: str, privilege_id: str) -> str:
         """
@@ -328,8 +368,7 @@ class DataverseAPIClient:
                 values = data.get("value", [])
                 if values:
                     depth_val = values[0].get("depth", 0)
-                    depth_map = {0: "Basic", 1: "Local", 2: "Deep", 3: "Global"}
-                    return depth_map.get(depth_val, "Global")
+                    return self.DEPTH_MAP.get(depth_val, "Global")
         except Exception:
             pass
         return "Global"
@@ -464,7 +503,7 @@ class DataverseAPIClient:
             for role_id in role_ids:
                 if role_id not in role_entity_map:
                     continue
-                role_name, entities = role_entity_map[role_id]
+                role_name, role_business_unit_id, entities = role_entity_map[role_id]
                 for entity_name, depth in entities.items():
                     if table_filter_set and entity_name.lower() not in table_filter_set:
                         continue
@@ -473,9 +512,12 @@ class DataverseAPIClient:
                             table_name=entity_name,
                             principal_id=user_id,
                             principal_type=IamType.USER,
+                            principal_business_unit_id=user.business_unit_id,
                             has_read=True,
                             depth=depth,
+                            role_id=role_id,
                             role_name=role_name,
+                            role_business_unit_id=role_business_unit_id,
                         )
                     )
 
@@ -487,7 +529,7 @@ class DataverseAPIClient:
             for role_id in role_ids:
                 if role_id not in role_entity_map:
                     continue
-                role_name, entities = role_entity_map[role_id]
+                role_name, role_business_unit_id, entities = role_entity_map[role_id]
                 for entity_name, depth in entities.items():
                     if table_filter_set and entity_name.lower() not in table_filter_set:
                         continue
@@ -496,9 +538,12 @@ class DataverseAPIClient:
                             table_name=entity_name,
                             principal_id=team_id,
                             principal_type=IamType.GROUP,
+                            principal_business_unit_id=team.business_unit_id,
                             has_read=True,
                             depth=depth,
+                            role_id=role_id,
                             role_name=role_name,
+                            role_business_unit_id=role_business_unit_id,
                         )
                     )
 
@@ -515,6 +560,7 @@ class DataverseAPIClient:
         privileges with their parent security role.
         """
         role_name_map = {r.id: r.name for r in security_roles}
+        role_business_unit_map = {r.id: r.business_unit_id for r in security_roles}
         role_entity_map: Dict[str, tuple] = {}
 
         for priv in role_privileges:
@@ -522,7 +568,19 @@ class DataverseAPIClient:
                 continue
             if priv.role_id not in role_entity_map:
                 role_name = role_name_map.get(priv.role_id, "UnknownRole")
-                role_entity_map[priv.role_id] = (role_name, {})
-            role_entity_map[priv.role_id][1][priv.entity_name] = priv.depth or "Global"
+                role_business_unit_id = role_business_unit_map.get(priv.role_id)
+                role_entity_map[priv.role_id] = (role_name, role_business_unit_id, {})
+            current_depth = role_entity_map[priv.role_id][2].get(priv.entity_name)
+            candidate_depth = (priv.depth or "Global").title()
+
+            if not current_depth:
+                role_entity_map[priv.role_id][2][priv.entity_name] = candidate_depth
+                continue
+
+            if self.DEPTH_RANK.get(candidate_depth, self.DEPTH_RANK["Global"]) >= self.DEPTH_RANK.get(
+                current_depth,
+                self.DEPTH_RANK["Global"],
+            ):
+                role_entity_map[priv.role_id][2][priv.entity_name] = candidate_depth
 
         return role_entity_map

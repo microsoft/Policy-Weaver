@@ -39,7 +39,7 @@ A Python-based accelerator designed to automate the synchronization of security 
 - **Microsoft Fabric Support**: Direct integration with Fabric Mirrored Databases/Catalogs and OneLake Security.
 - **Runs anywhere**: It can be run within Fabric Notebook or from anywhere with a Python runtime.
 - **Effective Policies**: Resolves effective read privileges automatically, traversing nested groups and roles as required.
-- **Pluggable Framework**: Supports Azure Databricks, Snowflake, and Microsoft Dataverse policies, with more connectors planned.
+- **Pluggable Framework**: Supports Azure Databricks, Snowflake, and Dataverse policies, with more connectors planned.
 - **Secure**: Can use Azure Key Vault to securely manage sensitive information like Service Principal credentials and API tokens.
 
 
@@ -458,7 +458,7 @@ Column level security is an optional feature that can be enabled in the config f
 
 :warning: NOTE: Column level security is only enabled if the config `policy_mapping` is set to `role_based`. In the case of table_based mapping there would be an unforeseeable high number of roles created in Fabric. That´s why it can only be used in role_based mapping.
 
-Databricks and Snowflake support column level security by column mask policies. Dataverse supports column level security through Field Security Profiles and Field Permissions. However, OneLake Security currently only supports column level security by denying access to specific columns.
+Databricks and Snowflake support column level security by column mask policies. Dataverse supports column level security via field security profiles. OneLake Security currently supports column level security by restricting visible columns in role constraints.
 
 Given the biggest use case for column mask policies is to hide the whole column, this still aligns. However, if you have a column mask policy that is not supported by Policy Weaver, you can configure the fallback to either grant or deny access to this column by default.
 
@@ -470,8 +470,7 @@ Supported column mask policies:
   - Allow only a specific role to see the real value. I.e. the function looks like `CASE WHEN CURRENT_ROLE() IN ('HR_ROLE') THEN ssn ELSE '<arbitrary_value>' END`
   - Allow everyone except a specific role to see the real value.  I.e. the function looks like `CASE WHEN CURRENT_ROLE() IN ('HR_ROLE') THEN '<arbitrary_value>' ELSE ssn END`
 - Dataverse:
-  - Columns marked as **secured** (`IsSecured = true`) are controlled via Field Security Profiles. If a principal's profile has `CanRead = Allowed` (value `4`) for a column, access is granted. If `CanRead = Not Allowed` (value `0`), the column is denied.
-  - If no Field Security Profile grants read access to a secured column for a given role, the column is denied by default.
+  - Field-level read permissions from Dataverse field security profiles are mapped to Fabric column constraints for role-based policies.
 
 If for a specific role all columns of a table are denied, the whole table is denied to this role and will not show up in the Fabric for this role.
 :warning: NOTE: Our recommendation is to set the fallback to deny to avoid unintentional data exposure. If you identify a scenaro where there is a data exposure risk, please give us feedback and we´ll try to fix it asap. Note though that this solution is provided as-is without any warranties.
@@ -484,7 +483,7 @@ Row level security is an optional feature that can be enabled in the config file
 :warning: NOTE: Row level security is only enabled if the config `policy_mapping` is set to `role_based`. In the case of table_based mapping there would be an unforeseeable high number of roles created in Fabric. That´s why it can only be used in role_based mapping.
 
 
-Databricks and Snowflake support various row level security variations. We currently only support simple row access policies defined on top of a table. OneLake Security sets row level security filters not on a table scope but a "table + role"-scope. For many use cases we can map the simple row access policies to this "table + role"-scope.
+Databricks and Snowflake support various row level security variations. Dataverse uses privilege depth and business unit hierarchy semantics. OneLake Security sets row level security filters not on a table scope but a "table + role"-scope. For many use cases we can map source-side semantics to this "table + role"-scope.
 
 > :pushpin: **Note:** Row level security is **not yet supported** for the Dataverse connector. This is planned for a future release.
 
@@ -502,6 +501,12 @@ Supported row access policies:
 - Snowflake:
   - Allow only specific groups to see the values in the form of: `current_role() in ('SENSITIVE')`
   - Based on group membership allow access to certain rows via a CASE statement in the form of: `CASE WHEN current_role() in ('SENSITIVE') THEN true  WHEN current_role() in ('COUNTRY') THEN Id = 'T001' ELSE false END`
+
+- Dataverse (role-based mapping):
+  - `Global` depth: no row filter is applied.
+  - `Deep` depth: rows are filtered to the role business unit and descendant business units.
+  - `Local` depth: rows are filtered to the role business unit.
+  - `Basic` depth: rows are filtered to records owned by principals in the role.
 
 
 If you see demand for more (simple) row access policies which are not supported, please give us feedback and we´ll try to add them.

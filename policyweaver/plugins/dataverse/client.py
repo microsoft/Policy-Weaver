@@ -1,6 +1,6 @@
 import json
 import os
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Set
 
 from pydantic.json import pydantic_encoder
 
@@ -118,28 +118,47 @@ class DataversePolicyWeaver(PolicyWeaverCore):
         - The principals (users/teams) assigned to that role
         - The table-level permission scopes (read)
         - Column constraints from field-level security
+        - Row constraints from BU depth (when enabled)
         """
-        # Build role -> {principals, tables} mapping
-        role_map: Dict[str, Dict] = {}
+        if not(self.config.constraints and self.config.constraints.columns and self.config.constraints.columns.columnlevelsecurity):
+            self.logger.warning("Column level security is not enabled in the config.")
+            column_security = False
+        else:
+            self.logger.info("Column level security is enabled in the config.")
+            column_security = True
+
+        if not(self.config.constraints and self.config.constraints.rows and self.config.constraints.rows.rowlevelsecurity):
+            self.logger.warning("Row level security is not enabled in the config.")
+            row_security = False
+        else:
+            self.logger.info("Row level security is enabled in the config.")
+            row_security = True
+
+        # Build (role instance + BU context) -> {principals, tables} mapping
+        role_map: Dict[Tuple[str, str], Dict] = {}
         catalog_name = self.config.source.name
         schema_name = self.__get_schema_name__()
 
         for perm in self.environment.table_permissions:
             role_name = perm.role_name or "UnknownRole"
-            if role_name not in role_map:
-                role_map[role_name] = {
+            role_key = (perm.role_id or role_name, perm.role_business_unit_id or "")
+            if role_key not in role_map:
+                role_map[role_key] = {
+                    "role_name": role_name,
+                    "role_business_unit_id": perm.role_business_unit_id,
                     "principals": set(),
                     "tables": set(),
                     "perms": [],
                 }
-            role_map[role_name]["principals"].add(
+            role_map[role_key]["principals"].add(
                 (perm.principal_id, perm.principal_type)
             )
-            role_map[role_name]["tables"].add(perm.table_name)
-            role_map[role_name]["perms"].append(perm)
+            role_map[role_key]["tables"].add(perm.table_name)
+            role_map[role_key]["perms"].append(perm)
 
         policies = []
-        for role_name, data in role_map.items():
+        for _, data in role_map.items():
+            role_name = data["role_name"]
             permission_objects = []
             for principal_id, principal_type in data["principals"]:
                 po = self.__resolve_permission_object__(principal_id, principal_type)
@@ -164,14 +183,23 @@ class DataversePolicyWeaver(PolicyWeaverCore):
             # Get column constraints from field-level security for the principals in this role
             column_constraints = self.__get_column_constraints_for_principals__(
                 data["principals"], data["tables"], catalog_name, schema_name
-            )
+            ) if column_security else []
+
+            row_constraints = self.__get_row_constraints_for_role__(
+                data["perms"], catalog_name, schema_name
+            ) if row_security else []
+
+            role_name_with_context = role_name
+            if data["role_business_unit_id"]:
+                bu_label = self.__get_role_business_unit_label__(data["role_business_unit_id"])
+                role_name_with_context = f"{role_name}_{bu_label}"
 
             role_policy = RolePolicy(
-                name=role_name,
+                name=role_name_with_context,
                 permissionobjects=permission_objects,
                 permissionscopes=permission_scopes,
                 columnconstraints=column_constraints if column_constraints else None,
-                rowconstraints=None,
+                rowconstraints=row_constraints if row_constraints else None,
             )
             policies.append(role_policy)
 
@@ -187,6 +215,124 @@ class DataversePolicyWeaver(PolicyWeaverCore):
 
         self.logger.info(f"Generated {len(policies)} role-based policies from Dataverse.")
         return export
+
+    def __get_role_business_unit_label__(self, role_business_unit_id: str) -> str:
+        """Return a readable BU label for role naming, with stable fallback."""
+        if not role_business_unit_id:
+            return ""
+
+        bu = self.environment.lookup_business_unit_by_id(role_business_unit_id)
+        if bu and bu.name:
+            return bu.name
+
+        return role_business_unit_id[:8]
+
+    def __get_depth_rank__(self, depth: str) -> int:
+        rank_map = DataverseAPIClient.DEPTH_RANK
+        return rank_map.get((depth or "Global").title(), rank_map["Global"])
+
+    def __get_descendant_business_unit_ids__(self, business_unit_id: str) -> List[str]:
+        if not business_unit_id:
+            return []
+
+        children_map: Dict[str, List[str]] = {}
+        for bu in self.environment.business_units:
+            if not bu.parent_business_unit_id:
+                continue
+            if bu.parent_business_unit_id not in children_map:
+                children_map[bu.parent_business_unit_id] = []
+            children_map[bu.parent_business_unit_id].append(bu.id)
+
+        descendants: Set[str] = set()
+        stack = [business_unit_id]
+        while stack:
+            current = stack.pop()
+            if current in descendants:
+                continue
+            descendants.add(current)
+            stack.extend(children_map.get(current, []))
+
+        return list(descendants)
+
+    def __build_row_filter_condition__(
+        self,
+        effective_depth: str,
+        role_business_unit_id: str,
+        principal_ids: Set[str],
+    ) -> str:
+        depth = (effective_depth or "Global").title()
+
+        if depth == "Global":
+            return None
+
+        if depth == "Deep":
+            descendants = self.__get_descendant_business_unit_ids__(role_business_unit_id)
+            if not descendants:
+                return "false"
+            escaped = "','".join(descendants)
+            return f"_owningbusinessunit_value in ('{escaped}')"
+
+        if depth == "Local":
+            if not role_business_unit_id:
+                return "false"
+            return f"_owningbusinessunit_value = '{role_business_unit_id}'"
+
+        if depth == "Basic":
+            if not principal_ids:
+                return "false"
+            escaped = "','".join(sorted(principal_ids))
+            return f"_ownerid_value in ('{escaped}')"
+
+        return None
+
+    def __get_row_constraints_for_role__(
+        self,
+        perms: List[DataverseTablePermission],
+        catalog_name: str,
+        schema_name: str,
+    ) -> List[RowConstraint]:
+        """
+        Build BU-aware row constraints by mapping Dataverse read depth to Fabric row filters:
+        - Global: no filter
+        - Deep: _owningbusinessunit_value in role BU and descendants
+        - Local: _owningbusinessunit_value equals role BU
+        - Basic: _ownerid_value equals one of the role principals
+        """
+        constraints: List[RowConstraint] = []
+        table_to_perms: Dict[str, List[DataverseTablePermission]] = {}
+
+        for perm in perms:
+            table_to_perms.setdefault(perm.table_name, []).append(perm)
+
+        for table_name, table_perms in table_to_perms.items():
+            ranked = sorted(
+                table_perms,
+                key=lambda p: self.__get_depth_rank__(p.depth),
+                reverse=True,
+            )
+            effective_depth = (ranked[0].depth or "Global").title()
+            role_business_unit_id = ranked[0].role_business_unit_id
+            principal_ids = {p.principal_id for p in table_perms if p.principal_id}
+
+            filter_condition = self.__build_row_filter_condition__(
+                effective_depth=effective_depth,
+                role_business_unit_id=role_business_unit_id,
+                principal_ids=principal_ids,
+            )
+
+            if not filter_condition:
+                continue
+
+            constraints.append(
+                RowConstraint(
+                    catalog_name=catalog_name,
+                    schema_name=schema_name,
+                    table_name=table_name,
+                    filter_condition=filter_condition,
+                )
+            )
+
+        return constraints
 
     def __get_schema_name__(self) -> str:
         """Get the schema name from config, defaulting to 'dbo'."""
@@ -227,8 +373,14 @@ class DataversePolicyWeaver(PolicyWeaverCore):
                 self.logger.warning(f"User {principal_id} not found in environment.")
                 return None
 
+            if not user.azure_ad_object_id:
+                self.logger.warning(
+                    f"Skipping Dataverse user {principal_id} because azure_ad_object_id is missing."
+                )
+                return None
+
             return PermissionObject(
-                id=user.azure_ad_object_id or user.id,
+                id=user.azure_ad_object_id,
                 email=user.email,
                 type=IamType.USER,
                 entra_object_id=user.azure_ad_object_id,
