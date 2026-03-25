@@ -336,42 +336,29 @@ class DataverseAPIClient:
         return all_privileges
 
     def __normalize_depth__(self, raw_depth: Any) -> str:
-        """Normalize Dataverse privilege depth to one of Basic/Local/Deep/Global."""
+        """Normalize Dataverse privilege depth to one of Basic/Local/Deep/Global.
+        Unknown or unrecognized values return 'Unknown' to signal fail-closed
+        handling downstream."""
         if isinstance(raw_depth, str):
             depth = raw_depth.strip().title()
             if depth in ["Basic", "Local", "Deep", "Global"]:
                 return depth
             if raw_depth.isdigit():
-                return self.DEPTH_MAP.get(int(raw_depth), "Global")
-            return "Global"
+                mapped = self.DEPTH_MAP.get(int(raw_depth))
+                if mapped:
+                    return mapped
+            self.logger.warning(f"Unrecognized privilege depth value: '{raw_depth}'. Treating as Unknown (deny).")
+            return "Unknown"
 
         if isinstance(raw_depth, int):
-            return self.DEPTH_MAP.get(raw_depth, "Global")
+            mapped = self.DEPTH_MAP.get(raw_depth)
+            if mapped:
+                return mapped
+            self.logger.warning(f"Unrecognized privilege depth integer: {raw_depth}. Treating as Unknown (deny).")
+            return "Unknown"
 
-        return "Global"
-
-    def __get_privilege_depth__(self, role_id: str, privilege_id: str) -> str:
-        """
-        Retrieve the depth of a specific privilege for a role using
-        the RetrieveRolePrivilegesRole function.
-        Falls back to 'Global' if the depth cannot be determined.
-        """
-        url = (
-            f"{self.api_url}/roles({role_id})/roleprivileges_association"
-            f"?$filter=privilegeid eq {privilege_id}"
-            "&$select=depth"
-        )
-        try:
-            response = self._request_get(url)
-            if response.status_code == 200:
-                data = response.json()
-                values = data.get("value", [])
-                if values:
-                    depth_val = values[0].get("depth", 0)
-                    return self.DEPTH_MAP.get(depth_val, "Global")
-        except Exception:
-            pass
-        return "Global"
+        self.logger.warning(f"Missing or null privilege depth (type={type(raw_depth).__name__}). Treating as Unknown (deny).")
+        return "Unknown"
 
     def __get_user_role_assignments__(self) -> Dict[str, List[str]]:
         """
@@ -571,15 +558,15 @@ class DataverseAPIClient:
                 role_business_unit_id = role_business_unit_map.get(priv.role_id)
                 role_entity_map[priv.role_id] = (role_name, role_business_unit_id, {})
             current_depth = role_entity_map[priv.role_id][2].get(priv.entity_name)
-            candidate_depth = (priv.depth or "Global").title()
+            candidate_depth = (priv.depth or "Unknown").title()
 
             if not current_depth:
                 role_entity_map[priv.role_id][2][priv.entity_name] = candidate_depth
                 continue
 
-            if self.DEPTH_RANK.get(candidate_depth, self.DEPTH_RANK["Global"]) >= self.DEPTH_RANK.get(
+            if self.DEPTH_RANK.get(candidate_depth, 0) >= self.DEPTH_RANK.get(
                 current_depth,
-                self.DEPTH_RANK["Global"],
+                0,
             ):
                 role_entity_map[priv.role_id][2][priv.entity_name] = candidate_depth
 

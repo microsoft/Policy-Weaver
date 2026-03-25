@@ -35,12 +35,24 @@ class DataversePolicyWeaver(PolicyWeaverCore):
 
     def __init__(self, config: DataverseSourceMap) -> None:
         super().__init__(PolicyWeaverConnectorType.DATAVERSE, config)
+        self.__config_validation(config)
         self.config = config
 
         os.environ["DATAVERSE_ENVIRONMENT_URL"] = config.dataverse.environment_url
 
         self.api_client = DataverseAPIClient()
         self.environment: DataverseEnvironment = None
+
+    def __config_validation(self, config: DataverseSourceMap) -> None:
+        """Validate the Dataverse plugin configuration."""
+        if not config.dataverse:
+            raise ValueError("DataverseSourceMap configuration is required for DataversePolicyWeaver.")
+
+        if not config.dataverse.environment_url:
+            raise ValueError("Dataverse environment_url is required in the configuration.")
+
+        if not config.dataverse.environment_url.startswith("https://"):
+            raise ValueError("Dataverse environment_url must start with 'https://'.")
 
     def map_policy(self, policy_mapping: str = "table_based") -> PolicyExport | RolePolicyExport:
         """
@@ -160,10 +172,14 @@ class DataversePolicyWeaver(PolicyWeaverCore):
         for _, data in role_map.items():
             role_name = data["role_name"]
             permission_objects = []
+            seen_entra_ids = set()
             for principal_id, principal_type in data["principals"]:
-                po = self.__resolve_permission_object__(principal_id, principal_type)
-                if po:
-                    permission_objects.append(po)
+                resolved = self.__resolve_permission_object__(principal_id, principal_type)
+                for po in resolved:
+                    entra_key = po.entra_object_id or po.id
+                    if entra_key and entra_key not in seen_entra_ids:
+                        seen_entra_ids.add(entra_key)
+                        permission_objects.append(po)
 
             if not permission_objects:
                 continue
@@ -229,7 +245,7 @@ class DataversePolicyWeaver(PolicyWeaverCore):
 
     def __get_depth_rank__(self, depth: str) -> int:
         rank_map = DataverseAPIClient.DEPTH_RANK
-        return rank_map.get((depth or "Global").title(), rank_map["Global"])
+        return rank_map.get((depth or "Unknown").title(), 0)
 
     def __get_descendant_business_unit_ids__(self, business_unit_id: str) -> List[str]:
         if not business_unit_id:
@@ -260,7 +276,7 @@ class DataversePolicyWeaver(PolicyWeaverCore):
         role_business_unit_id: str,
         principal_ids: Set[str],
     ) -> str:
-        depth = (effective_depth or "Global").title()
+        depth = (effective_depth or "Unknown").title()
 
         if depth == "Global":
             return None
@@ -283,7 +299,12 @@ class DataversePolicyWeaver(PolicyWeaverCore):
             escaped = "','".join(sorted(principal_ids))
             return f"_ownerid_value in ('{escaped}')"
 
-        return None
+        # Unknown or unrecognized depth — fail closed (deny all rows)
+        self.logger.warning(
+            f"Unrecognized effective depth '{effective_depth}' for role BU '{role_business_unit_id}'. "
+            f"Denying all rows (fail-closed)."
+        )
+        return "false"
 
     def __get_row_constraints_for_role__(
         self,
@@ -310,7 +331,7 @@ class DataversePolicyWeaver(PolicyWeaverCore):
                 key=lambda p: self.__get_depth_rank__(p.depth),
                 reverse=True,
             )
-            effective_depth = (ranked[0].depth or "Global").title()
+            effective_depth = (ranked[0].depth or "Unknown").title()
             role_business_unit_id = ranked[0].role_business_unit_id
             principal_ids = {p.principal_id for p in table_perms if p.principal_id}
 
@@ -346,59 +367,65 @@ class DataversePolicyWeaver(PolicyWeaverCore):
         """
         Build deduplicated PermissionObject list from table permissions.
         Resolves users and teams to their Entra identities.
+        Deduplicates by Entra object ID after team expansion.
         """
-        seen = set()
+        seen_principals = set()
+        seen_entra_ids = set()
         objects = []
 
         for perm in perms:
-            if perm.principal_id in seen:
+            if perm.principal_id in seen_principals:
                 continue
-            seen.add(perm.principal_id)
+            seen_principals.add(perm.principal_id)
 
-            po = self.__resolve_permission_object__(perm.principal_id, perm.principal_type)
-            if po:
-                objects.append(po)
+            resolved = self.__resolve_permission_object__(perm.principal_id, perm.principal_type)
+            for po in resolved:
+                entra_key = po.entra_object_id or po.id
+                if entra_key and entra_key not in seen_entra_ids:
+                    seen_entra_ids.add(entra_key)
+                    objects.append(po)
 
         return objects
 
     def __resolve_permission_object__(
         self, principal_id: str, principal_type: IamType
-    ) -> PermissionObject:
+    ) -> List[PermissionObject]:
         """
-        Resolve a Dataverse principal to a PermissionObject with Entra identity.
+        Resolve a Dataverse principal to PermissionObject(s) with Entra identity.
+        Returns a list to support expanding owner/access teams to individual users.
         """
         if principal_type == IamType.USER:
             user = self.environment.lookup_user_by_id(principal_id)
             if not user:
                 self.logger.warning(f"User {principal_id} not found in environment.")
-                return None
+                return []
 
             if not user.azure_ad_object_id:
                 self.logger.warning(
                     f"Skipping Dataverse user {principal_id} because azure_ad_object_id is missing."
                 )
-                return None
+                return []
 
-            return PermissionObject(
+            return [PermissionObject(
                 id=user.azure_ad_object_id,
                 email=user.email,
                 type=IamType.USER,
                 entra_object_id=user.azure_ad_object_id,
-            )
+            )]
 
         elif principal_type == IamType.GROUP:
             team = self.environment.lookup_team_by_id(principal_id)
             if not team:
                 self.logger.warning(f"Team {principal_id} not found in environment.")
-                return None
+                return []
 
             # AAD-backed teams (type 2 or 3) have Entra group object IDs
             if team.azure_ad_object_id:
-                return PermissionObject(
+                return [PermissionObject(
                     id=team.azure_ad_object_id,
                     type=IamType.GROUP,
                     entra_object_id=team.azure_ad_object_id,
-                )
+                )]
             else:
                 # Owner or Access teams - expand to individual users
                 expanded = []
@@ -413,19 +440,14 @@ class DataversePolicyWeaver(PolicyWeaverCore):
                                 entra_object_id=user.azure_ad_object_id,
                             )
                         )
-                # Return first for single user, or None for empty
-                # For table-based mode the caller handles dedup
-                if len(expanded) == 1:
-                    return expanded[0]
-                elif len(expanded) > 1:
-                    # Return team representation - members resolved at apply time
-                    return PermissionObject(
-                        id=team.id,
-                        type=IamType.GROUP,
+                if not expanded:
+                    self.logger.warning(
+                        f"Owner/Access team {team.name} ({principal_id}) produced no resolvable Entra identities "
+                        f"(members without azure_ad_object_id or empty membership)."
                     )
-                return None
+                return expanded
 
-        return None
+        return []
 
     def __get_column_constraints_for_principals__(
         self,
