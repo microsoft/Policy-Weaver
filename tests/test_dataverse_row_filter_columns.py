@@ -3,10 +3,19 @@ import unittest
 from policyweaver.plugins.dataverse.client import DataversePolicyWeaver
 
 
+class _FakeLogger:
+    def __init__(self):
+        self.warnings = []
+
+    def warning(self, message):
+        self.warnings.append(message)
+
+
 class TestDataverseRowFilterColumns(unittest.TestCase):
     def setUp(self):
         # Bypass __init__ so we can unit test pure filter generation logic.
         self.client = DataversePolicyWeaver.__new__(DataversePolicyWeaver)
+        self.client.logger = _FakeLogger()
         self.client.environment = type("Env", (), {})()
         self.client.environment.business_units = []
 
@@ -58,6 +67,46 @@ class TestDataverseRowFilterColumns(unittest.TestCase):
             effective_depth="Basic",
             role_business_unit_id=None,
             principal_ids=set(),
+        )
+
+        self.assertEqual("false", condition)
+
+    def test_global_returns_none(self):
+        condition = self.client.__build_row_filter_condition__(
+            effective_depth="Global",
+            role_business_unit_id="bu-1",
+            principal_ids=set(),
+        )
+
+        self.assertIsNone(condition)
+
+    def test_unknown_depth_returns_false_deny_all(self):
+        """Unknown depth must fail closed — deny all rows, not grant all."""
+        condition = self.client.__build_row_filter_condition__(
+            effective_depth="Unknown",
+            role_business_unit_id="bu-1",
+            principal_ids={"user-a"},
+        )
+
+        self.assertEqual("false", condition)
+        self.assertTrue(any("Unrecognized effective depth" in w for w in self.client.logger.warnings))
+
+    def test_none_depth_returns_false_deny_all(self):
+        """Null/None depth must fail closed — deny all rows."""
+        condition = self.client.__build_row_filter_condition__(
+            effective_depth=None,
+            role_business_unit_id="bu-1",
+            principal_ids={"user-a"},
+        )
+
+        self.assertEqual("false", condition)
+
+    def test_arbitrary_string_depth_returns_false_deny_all(self):
+        """Unexpected depth values like 'Organization' must fail closed."""
+        condition = self.client.__build_row_filter_condition__(
+            effective_depth="Organization",
+            role_business_unit_id="bu-1",
+            principal_ids={"user-a"},
         )
 
         self.assertEqual("false", condition)
