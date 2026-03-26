@@ -411,3 +411,24 @@ build/*
 # Docs
 docs/build/*
 configdataverse.yaml
+.github/copilot-instructions.md
+
+# Additional venvs
+.venv-x64/
+
+# Local dev files
+.foundry/
+agent.yaml
+test_agent.py
+business_unit_metadata.csv
+.pytest_cache/
+
+# Generated docs/summaries
+*-code-summary.md
+*-code-walkthrough.md
+*-walkthrough.md
+core-models-code-summary.md
+dataverse-plugin-code-summary.md
+dataverse-plugin-code-walkthrough.md
+dataverse-plugin-walkthrough.md
+test_agent.py
