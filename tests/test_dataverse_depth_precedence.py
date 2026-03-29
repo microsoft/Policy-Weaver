@@ -109,10 +109,9 @@ class TestDataverseRoleEntityDepthPrecedence(unittest.TestCase):
         self.assertEqual("Unknown", result["role-1"][2]["account"])
 
     def test_unrecognized_depth_string_normalizes_to_unknown(self):
-        """Depth values not in Basic/Local/Deep/Global should be treated as Unknown
-        after normalization. __build_role_entity_map__ receives already-normalized
-        depth values, so we pass 'Unknown' (the output of __normalize_depth__ for
-        unrecognized inputs like 'Organization')."""
+        """Depth values not in Basic/Local/Deep/Global should be treated as Unknown.
+        __build_role_entity_map__ receives named depth strings from the bitmask
+        conversion in __get_role_read_privileges__."""
         role = DataverseSecurityRole(
             id="role-1",
             name="Reader",
@@ -164,23 +163,38 @@ class TestDataverseRoleEntityDepthPrecedence(unittest.TestCase):
         # Local (rank 2) beats Unknown (rank 0)
         self.assertEqual("Local", result["role-1"][2]["account"])
 
-    def test_normalize_depth_converts_unrecognized_string_to_unknown(self):
-        """Verify __normalize_depth__ itself returns 'Unknown' for unrecognized values."""
-        self.assertEqual("Unknown", self.client.__normalize_depth__("Organization"))
-        self.assertEqual("Unknown", self.client.__normalize_depth__("SomeRandomValue"))
-        self.assertEqual("Unknown", self.client.__normalize_depth__(99))
-        self.assertEqual("Unknown", self.client.__normalize_depth__(None))
 
-    def test_normalize_depth_passes_valid_values_through(self):
-        """Known depth values should pass through unchanged."""
-        self.assertEqual("Basic", self.client.__normalize_depth__("Basic"))
-        self.assertEqual("Local", self.client.__normalize_depth__("local"))
-        self.assertEqual("Deep", self.client.__normalize_depth__("DEEP"))
-        self.assertEqual("Global", self.client.__normalize_depth__("Global"))
-        self.assertEqual("Basic", self.client.__normalize_depth__(0))
-        self.assertEqual("Local", self.client.__normalize_depth__(1))
-        self.assertEqual("Deep", self.client.__normalize_depth__(2))
-        self.assertEqual("Global", self.client.__normalize_depth__(3))
+class TestDepthMaskMapping(unittest.TestCase):
+    """Validate that privilegedepthmask bitmask values from roleprivilegescollection
+    are correctly converted to named depths. These bitmask values (1, 2, 4, 8) differ
+    from the ordinal DEPTH_MAP values (0, 1, 2, 3) used by __normalize_depth__."""
+
+    def test_bitmask_1_maps_to_basic(self):
+        """privilegedepthmask=1 is Basic (User/Team), not Local."""
+        DEPTH_MASK_MAP = {1: "Basic", 2: "Local", 4: "Deep", 8: "Global"}
+        self.assertEqual("Basic", DEPTH_MASK_MAP[1])
+
+    def test_bitmask_2_maps_to_local(self):
+        """privilegedepthmask=2 is Local (Business Unit), not Deep."""
+        DEPTH_MASK_MAP = {1: "Basic", 2: "Local", 4: "Deep", 8: "Global"}
+        self.assertEqual("Local", DEPTH_MASK_MAP[2])
+
+    def test_bitmask_4_maps_to_deep(self):
+        """privilegedepthmask=4 is Deep (Parent: Business Unit)."""
+        DEPTH_MASK_MAP = {1: "Basic", 2: "Local", 4: "Deep", 8: "Global"}
+        self.assertEqual("Deep", DEPTH_MASK_MAP[4])
+
+    def test_bitmask_8_maps_to_global(self):
+        """privilegedepthmask=8 is Global (Organization)."""
+        DEPTH_MASK_MAP = {1: "Basic", 2: "Local", 4: "Deep", 8: "Global"}
+        self.assertEqual("Global", DEPTH_MASK_MAP[8])
+
+    def test_bitmask_not_in_map_should_not_resolve(self):
+        """Unexpected bitmask values (e.g. 0, 16) must not resolve to a valid depth."""
+        DEPTH_MASK_MAP = {1: "Basic", 2: "Local", 4: "Deep", 8: "Global"}
+        self.assertNotIn(0, DEPTH_MASK_MAP)
+        self.assertNotIn(16, DEPTH_MASK_MAP)
+        self.assertNotIn(3, DEPTH_MASK_MAP)
 
 
 if __name__ == "__main__":

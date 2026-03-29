@@ -1,8 +1,5 @@
-import json
 import os
 from typing import List, Dict, Tuple, Set
-
-from pydantic.json import pydantic_encoder
 
 from policyweaver.models.export import (
     PolicyExport, Policy, Permission, PermissionObject,
@@ -11,12 +8,10 @@ from policyweaver.models.export import (
 )
 from policyweaver.plugins.dataverse.model import (
     DataverseSourceMap, DataverseEnvironment, DataverseTablePermission,
-    DataverseUser, DataverseTeam, DataverseFieldSecurityProfile
 )
 from policyweaver.core.enum import (
     IamType, PermissionType, PermissionState, PolicyWeaverConnectorType
 )
-from policyweaver.core.utility import Utils
 from policyweaver.core.common import PolicyWeaverCore
 from policyweaver.plugins.dataverse.api import DataverseAPIClient
 
@@ -140,11 +135,13 @@ class DataversePolicyWeaver(PolicyWeaverCore):
             column_security = True
 
         if not(self.config.constraints and self.config.constraints.rows and self.config.constraints.rows.rowlevelsecurity):
-            self.logger.warning("Row level security is not enabled in the config.")
-            row_security = False
+            self.logger.warning(
+                "Row level security is not enabled in the config. "
+                "Row filters will still be applied for non-Global depths "
+                "to maintain Dataverse access parity (no over-granting)."
+            )
         else:
             self.logger.info("Row level security is enabled in the config.")
-            row_security = True
 
         # Build (role instance + BU context) -> {principals, tables} mapping
         role_map: Dict[Tuple[str, str], Dict] = {}
@@ -203,7 +200,7 @@ class DataversePolicyWeaver(PolicyWeaverCore):
 
             row_constraints = self.__get_row_constraints_for_role__(
                 data["perms"], catalog_name, schema_name
-            ) if row_security else []
+            )
 
             role_name_with_context = role_name
             if data["role_business_unit_id"]:

@@ -2,7 +2,7 @@ import logging
 import json
 import os
 import time
-from typing import List, Dict, Any
+from typing import List, Dict
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -35,7 +35,6 @@ class DataverseAPIClient:
     DEFAULT_API_VERSION = "v9.2"
     READ_PRIVILEGE_PREFIX = "prvRead"
     READ_ACCESS_RIGHT = 1  # ReadAccess bit in Dataverse privilege access rights
-    DEPTH_MAP = {0: "Basic", 1: "Local", 2: "Deep", 3: "Global"}
     DEPTH_RANK = {"Basic": 1, "Local": 2, "Deep": 3, "Global": 4}
 
     def __init__(self):
@@ -235,8 +234,12 @@ class DataverseAPIClient:
                 team.member_ids = []
 
     def __get_security_roles__(self) -> List[DataverseSecurityRole]:
-        """Retrieve all security roles."""
-        url = f"{self.api_url}/roles?$select=roleid,name,_businessunitid_value"
+        """Retrieve all published security roles (componentstate=0)."""
+        url = (
+            f"{self.api_url}/roles"
+            "?$select=roleid,name,_businessunitid_value"
+            "&$filter=componentstate eq 0"
+        )
         records = self._get_paged(url)
         roles = [
             DataverseSecurityRole(
@@ -271,8 +274,9 @@ class DataverseAPIClient:
         """
         Retrieve role privileges and filter to only read-related privileges.
         Uses roleprivileges_association for privilege metadata and
-        roleprivilegescollection for the privilege depth mask.
+        roleprivilegescollection for the privilege depth mask (bitmask values).
         """
+        # Dataverse privilegedepthmask uses bitmask values, not ordinals.
         DEPTH_MASK_MAP = {
             1: "Basic",          # User/Team
             2: "Local",          # Business Unit
@@ -282,22 +286,33 @@ class DataverseAPIClient:
 
         # Build a depth lookup from roleprivilegescollection (the intersect entity
         # that holds privilegedepthmask). Keyed by (roleid, privilegeid).
-        depth_lookup: Dict[tuple, int] = {}
-        depth_url = f"{self.api_url}/roleprivilegescollection?$select=roleid,privilegeid,privilegedepthmask"
-        try:
-            depth_records = self._get_paged(depth_url)
-            for dr in depth_records:
-                key = (dr.get("roleid", ""), dr.get("privilegeid", ""))
-                depth_lookup[key] = dr.get("privilegedepthmask", 8)
-        except Exception as e:
-            self.logger.warning(f"Failed to fetch roleprivilegescollection for depth info: {e}")
+        # Convert bitmask -> named depth at lookup-build time.
+        depth_lookup: Dict[tuple, str] = {}
+        depth_url = (
+            f"{self.api_url}/roleprivilegescollection"
+            "?$select=roleid,privilegeid,privilegedepthmask"
+            "&$filter=componentstate eq 0"
+        )
+        depth_records = self._get_paged(depth_url)
+        for dr in depth_records:
+            key = (dr.get("roleid", ""), dr.get("privilegeid", ""))
+            raw_mask = dr.get("privilegedepthmask")
+            if raw_mask is not None and raw_mask in DEPTH_MASK_MAP:
+                depth_lookup[key] = DEPTH_MASK_MAP[raw_mask]
+            else:
+                self.logger.warning(
+                    f"Missing or unrecognized privilegedepthmask={raw_mask} "
+                    f"for role={key[0][:12]} privilege={key[1][:12]}. "
+                    f"Treating as Unknown (fail-closed)."
+                )
+                depth_lookup[key] = "Unknown"
 
         all_privileges = []
 
         for role in roles:
             url = (
                 f"{self.api_url}/roles({role.id})/roleprivileges_association"
-                "?$select=privilegeid,name,accessright,depth"
+                "?$select=privilegeid,name,accessright"
             )
             try:
                 records = self._get_paged(url)
@@ -319,7 +334,17 @@ class DataverseAPIClient:
                 if priv_name.lower().startswith("prvread"):
                     entity_name = priv_name[7:].lower()  # len("prvRead") = 7
 
-                depth = self.__normalize_depth__(r.get("depth"))
+                # Resolve depth from roleprivilegescollection intersect entity.
+                # If not found in depth_lookup, fail-closed with Unknown.
+                priv_id = r.get("privilegeid", "")
+                depth = depth_lookup.get((role.id, priv_id))
+                if depth is None:
+                    self.logger.warning(
+                        f"No depth found in roleprivilegescollection for "
+                        f"role={role.id[:12]} privilege={priv_id[:12]} ({priv_name}). "
+                        f"Treating as Unknown (fail-closed)."
+                    )
+                    depth = "Unknown"
 
                 all_privileges.append(
                     DataverseRolePrivilege(
@@ -334,31 +359,6 @@ class DataverseAPIClient:
                 )
 
         return all_privileges
-
-    def __normalize_depth__(self, raw_depth: Any) -> str:
-        """Normalize Dataverse privilege depth to one of Basic/Local/Deep/Global.
-        Unknown or unrecognized values return 'Unknown' to signal fail-closed
-        handling downstream."""
-        if isinstance(raw_depth, str):
-            depth = raw_depth.strip().title()
-            if depth in ["Basic", "Local", "Deep", "Global"]:
-                return depth
-            if raw_depth.isdigit():
-                mapped = self.DEPTH_MAP.get(int(raw_depth))
-                if mapped:
-                    return mapped
-            self.logger.warning(f"Unrecognized privilege depth value: '{raw_depth}'. Treating as Unknown (deny).")
-            return "Unknown"
-
-        if isinstance(raw_depth, int):
-            mapped = self.DEPTH_MAP.get(raw_depth)
-            if mapped:
-                return mapped
-            self.logger.warning(f"Unrecognized privilege depth integer: {raw_depth}. Treating as Unknown (deny).")
-            return "Unknown"
-
-        self.logger.warning(f"Missing or null privilege depth (type={type(raw_depth).__name__}). Treating as Unknown (deny).")
-        return "Unknown"
 
     def __get_user_role_assignments__(self) -> Dict[str, List[str]]:
         """
