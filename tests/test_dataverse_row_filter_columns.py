@@ -89,7 +89,11 @@ class TestDataverseRowFilterColumns(unittest.TestCase):
         )
 
         self.assertEqual("false", condition)
-        self.assertTrue(any("Unrecognized effective depth" in w for w in self.client.logger.warnings))
+        self.assertTrue(
+            any(
+                "Unrecognized effective depth" in w for w in self.client.logger.warnings
+            )
+        )
 
     def test_none_depth_returns_false_deny_all(self):
         """Null/None depth must fail closed — deny all rows."""

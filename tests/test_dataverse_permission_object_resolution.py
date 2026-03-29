@@ -39,7 +39,9 @@ class TestDataversePermissionObjectResolution(unittest.TestCase):
         )
         self.client.environment = _FakeEnvironment(users=[user])
 
-        resolved = self.client.__resolve_permission_object__("system-user-1", IamType.USER)
+        resolved = self.client.__resolve_permission_object__(
+            "system-user-1", IamType.USER
+        )
 
         self.assertEqual(resolved, [])
 
@@ -52,7 +54,9 @@ class TestDataversePermissionObjectResolution(unittest.TestCase):
         )
         self.client.environment = _FakeEnvironment(users=[user])
 
-        resolved = self.client.__resolve_permission_object__("system-user-2", IamType.USER)
+        resolved = self.client.__resolve_permission_object__(
+            "system-user-2", IamType.USER
+        )
 
         self.assertEqual(len(resolved), 1)
         self.assertEqual("entra-obj-2", resolved[0].id)
@@ -68,7 +72,9 @@ class TestDataversePermissionObjectResolution(unittest.TestCase):
         )
         self.client.environment = _FakeEnvironment(teams=[team])
 
-        resolved = self.client.__resolve_permission_object__("team-aad-1", IamType.GROUP)
+        resolved = self.client.__resolve_permission_object__(
+            "team-aad-1", IamType.GROUP
+        )
 
         self.assertEqual(len(resolved), 1)
         self.assertEqual("entra-group-1", resolved[0].id)
@@ -91,7 +97,9 @@ class TestDataversePermissionObjectResolution(unittest.TestCase):
         )
         self.client.environment = _FakeEnvironment(users=[user], teams=[team])
 
-        resolved = self.client.__resolve_permission_object__("team-owner-1", IamType.GROUP)
+        resolved = self.client.__resolve_permission_object__(
+            "team-owner-1", IamType.GROUP
+        )
 
         self.assertEqual(len(resolved), 1)
         self.assertEqual("entra-member-1", resolved[0].id)
@@ -99,10 +107,16 @@ class TestDataversePermissionObjectResolution(unittest.TestCase):
 
     def test_owner_team_multiple_members_expands_to_all_users(self):
         user1 = DataverseUser(
-            id="user-a", name="A", email="a@test.com", azure_ad_object_id="entra-a",
+            id="user-a",
+            name="A",
+            email="a@test.com",
+            azure_ad_object_id="entra-a",
         )
         user2 = DataverseUser(
-            id="user-b", name="B", email="b@test.com", azure_ad_object_id="entra-b",
+            id="user-b",
+            name="B",
+            email="b@test.com",
+            azure_ad_object_id="entra-b",
         )
         team = DataverseTeam(
             id="team-owner-2",
@@ -113,7 +127,9 @@ class TestDataversePermissionObjectResolution(unittest.TestCase):
         )
         self.client.environment = _FakeEnvironment(users=[user1, user2], teams=[team])
 
-        resolved = self.client.__resolve_permission_object__("team-owner-2", IamType.GROUP)
+        resolved = self.client.__resolve_permission_object__(
+            "team-owner-2", IamType.GROUP
+        )
 
         self.assertEqual(len(resolved), 2)
         entra_ids = {po.id for po in resolved}
@@ -122,7 +138,10 @@ class TestDataversePermissionObjectResolution(unittest.TestCase):
 
     def test_owner_team_no_resolvable_members_returns_empty_with_warning(self):
         user_no_entra = DataverseUser(
-            id="user-no-entra", name="No Entra", email="none@test.com", azure_ad_object_id=None,
+            id="user-no-entra",
+            name="No Entra",
+            email="none@test.com",
+            azure_ad_object_id=None,
         )
         team = DataverseTeam(
             id="team-empty-1",
@@ -133,15 +152,24 @@ class TestDataversePermissionObjectResolution(unittest.TestCase):
         )
         self.client.environment = _FakeEnvironment(users=[user_no_entra], teams=[team])
 
-        resolved = self.client.__resolve_permission_object__("team-empty-1", IamType.GROUP)
+        resolved = self.client.__resolve_permission_object__(
+            "team-empty-1", IamType.GROUP
+        )
 
         self.assertEqual(resolved, [])
-        self.assertTrue(any("Empty Team" in w and "no resolvable Entra identities" in w for w in self.client.logger.warnings))
+        self.assertTrue(
+            any(
+                "Empty Team" in w and "no resolvable Entra identities" in w
+                for w in self.client.logger.warnings
+            )
+        )
 
     def test_unknown_principal_type_returns_empty_list(self):
         self.client.environment = _FakeEnvironment()
 
-        resolved = self.client.__resolve_permission_object__("unknown-id", IamType.SERVICE_PRINCIPAL)
+        resolved = self.client.__resolve_permission_object__(
+            "unknown-id", IamType.SERVICE_PRINCIPAL
+        )
 
         self.assertEqual(resolved, [])
 

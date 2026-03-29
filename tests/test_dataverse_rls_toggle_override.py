@@ -14,13 +14,21 @@ import logging
 
 from policyweaver.plugins.dataverse.client import DataversePolicyWeaver
 from policyweaver.plugins.dataverse.model import (
-    DataverseSourceMap, DataverseSourceConfig,
-    DataverseUser, DataverseTablePermission,
-    DataverseEnvironment, DataverseBusinessUnit, DataverseSecurityRole,
+    DataverseSourceMap,
+    DataverseSourceConfig,
+    DataverseUser,
+    DataverseTablePermission,
+    DataverseEnvironment,
+    DataverseBusinessUnit,
+    DataverseSecurityRole,
 )
 from policyweaver.models.config import (
-    Source, SourceSchema, ConstraintsConfig, RowConstraintsConfig,
-    ColumnConstraintsConfig, FabricConfig,
+    Source,
+    SourceSchema,
+    ConstraintsConfig,
+    RowConstraintsConfig,
+    ColumnConstraintsConfig,
+    FabricConfig,
 )
 from policyweaver.core.enum import IamType
 
@@ -42,7 +50,9 @@ def _make_config(rls_enabled: bool) -> DataverseSourceMap:
             columns=ColumnConstraintsConfig(columnlevelsecurity=False),
             rows=RowConstraintsConfig(rowlevelsecurity=rls_enabled),
         ),
-        dataverse=DataverseSourceConfig(environment_url="https://test.crm.dynamics.com"),
+        dataverse=DataverseSourceConfig(
+            environment_url="https://test.crm.dynamics.com"
+        ),
     )
 
 
@@ -64,11 +74,17 @@ def _make_environment(
         ],
         teams=[],
         business_units=[
-            DataverseBusinessUnit(id="bu-root", name="Root BU", parent_business_unit_id=None),
-            DataverseBusinessUnit(id="bu-child", name="Child BU", parent_business_unit_id="bu-root"),
+            DataverseBusinessUnit(
+                id="bu-root", name="Root BU", parent_business_unit_id=None
+            ),
+            DataverseBusinessUnit(
+                id="bu-child", name="Child BU", parent_business_unit_id="bu-root"
+            ),
         ],
         security_roles=[
-            DataverseSecurityRole(id="role-1", name="TestRole", business_unit_id=role_bu_id),
+            DataverseSecurityRole(
+                id="role-1", name="TestRole", business_unit_id=role_bu_id
+            ),
         ],
         role_privileges=[],
         user_role_assignments={"user-1": ["role-1"]},
@@ -109,7 +125,9 @@ class TestRlsToggleOverride(unittest.TestCase):
 
         self.assertIsNotNone(policy.rowconstraints)
         self.assertEqual(len(policy.rowconstraints), 1)
-        self.assertIn("_owningbusinessunit_value", policy.rowconstraints[0].filter_condition)
+        self.assertIn(
+            "_owningbusinessunit_value", policy.rowconstraints[0].filter_condition
+        )
 
     def test_rls_off_deep_depth_emits_row_constraint(self):
         export = self._build_export(rls_enabled=False, depth="Deep")
@@ -117,7 +135,9 @@ class TestRlsToggleOverride(unittest.TestCase):
 
         self.assertIsNotNone(policy.rowconstraints)
         self.assertEqual(len(policy.rowconstraints), 1)
-        self.assertIn("_owningbusinessunit_value", policy.rowconstraints[0].filter_condition)
+        self.assertIn(
+            "_owningbusinessunit_value", policy.rowconstraints[0].filter_condition
+        )
 
     def test_rls_off_basic_depth_emits_row_constraint(self):
         export = self._build_export(rls_enabled=False, depth="Basic")
@@ -165,7 +185,9 @@ class TestRlsToggleOverride(unittest.TestCase):
             source=Source(name="TestCatalog", schemas=[SourceSchema(name="dbo")]),
             fabric=FabricConfig(policy_mapping="role_based"),
             constraints=None,
-            dataverse=DataverseSourceConfig(environment_url="https://test.crm.dynamics.com"),
+            dataverse=DataverseSourceConfig(
+                environment_url="https://test.crm.dynamics.com"
+            ),
         )
         client = DataversePolicyWeaver.__new__(DataversePolicyWeaver)
         client.config = config
@@ -177,7 +199,9 @@ class TestRlsToggleOverride(unittest.TestCase):
 
         self.assertIsNotNone(policy.rowconstraints)
         self.assertEqual(len(policy.rowconstraints), 1)
-        self.assertIn("_owningbusinessunit_value", policy.rowconstraints[0].filter_condition)
+        self.assertIn(
+            "_owningbusinessunit_value", policy.rowconstraints[0].filter_condition
+        )
 
 
 if __name__ == "__main__":

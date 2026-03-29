@@ -57,7 +57,7 @@ class DataverseAPIClient:
         )
         self.session.mount("https://", HTTPAdapter(max_retries=retry))
         self.timeout = (10, 120)
-        
+
     def _get_access_token(self, force_refresh: bool = False) -> str:
         """Get a cached access token and refresh before expiry when needed."""
         refresh_window_seconds = 120
@@ -79,7 +79,9 @@ class DataverseAPIClient:
         response = self.session.get(url, headers=self._headers, timeout=self.timeout)
         if response.status_code == 401:
             self._get_access_token(force_refresh=True)
-            response = self.session.get(url, headers=self._headers, timeout=self.timeout)
+            response = self.session.get(
+                url, headers=self._headers, timeout=self.timeout
+            )
         return response
 
     @property
@@ -137,24 +139,28 @@ class DataverseAPIClient:
 
         self.logger.info("Fetching user-role assignments...")
         env.user_role_assignments = self.__get_user_role_assignments__()
-        self.logger.info(f"Found user-role assignments for {len(env.user_role_assignments)} users.")
+        self.logger.info(
+            f"Found user-role assignments for {len(env.user_role_assignments)} users."
+        )
 
         self.logger.info("Fetching team-role assignments...")
         env.team_role_assignments = self.__get_team_role_assignments__()
-        self.logger.info(f"Found team-role assignments for {len(env.team_role_assignments)} teams.")
+        self.logger.info(
+            f"Found team-role assignments for {len(env.team_role_assignments)} teams."
+        )
 
         self.logger.info("Fetching team memberships...")
         self.__populate_team_members__(env.teams)
 
         self.logger.info("Fetching field-level security profiles...")
         env.field_security_profiles = self.__get_field_security_profiles__()
-        self.logger.info(f"Found {len(env.field_security_profiles)} field security profiles.")
+        self.logger.info(
+            f"Found {len(env.field_security_profiles)} field security profiles."
+        )
 
         # Resolve effective table-level read permissions
         table_filter = self.__get_table_filter__(source)
-        env.table_permissions = self.__resolve_table_permissions__(
-            env, table_filter
-        )
+        env.table_permissions = self.__resolve_table_permissions__(env, table_filter)
 
         self.logger.debug(
             f"Dataverse Environment Security Map: {json.dumps(env, default=pydantic_encoder, indent=4)}"
@@ -193,7 +199,9 @@ class DataverseAPIClient:
                     is_disabled=r.get("isdisabled", False),
                 )
             )
-        self.logger.debug(f"Dataverse Users: {json.dumps(users, default=pydantic_encoder, indent=4)}")
+        self.logger.debug(
+            f"Dataverse Users: {json.dumps(users, default=pydantic_encoder, indent=4)}"
+        )
         return users
 
     def __get_teams__(self) -> List[DataverseTeam]:
@@ -213,7 +221,9 @@ class DataverseAPIClient:
             )
             for r in records
         ]
-        self.logger.debug(f"Dataverse Teams: {json.dumps(teams, default=pydantic_encoder, indent=4)}")
+        self.logger.debug(
+            f"Dataverse Teams: {json.dumps(teams, default=pydantic_encoder, indent=4)}"
+        )
         return teams
 
     def __populate_team_members__(self, teams: List[DataverseTeam]) -> None:
@@ -230,7 +240,9 @@ class DataverseAPIClient:
                         member_ids.append(uid)
                 team.member_ids = member_ids
             except Exception as e:
-                self.logger.warning(f"Failed to fetch members for team {team.name}: {e}")
+                self.logger.warning(
+                    f"Failed to fetch members for team {team.name}: {e}"
+                )
                 team.member_ids = []
 
     def __get_security_roles__(self) -> List[DataverseSecurityRole]:
@@ -249,7 +261,9 @@ class DataverseAPIClient:
             )
             for r in records
         ]
-        self.logger.debug(f"Dataverse Security Roles: {json.dumps(roles, default=pydantic_encoder, indent=4)}")
+        self.logger.debug(
+            f"Dataverse Security Roles: {json.dumps(roles, default=pydantic_encoder, indent=4)}"
+        )
         return roles
 
     def __get_business_units__(self) -> List[DataverseBusinessUnit]:
@@ -270,7 +284,9 @@ class DataverseAPIClient:
             if r.get("businessunitid")
         ]
 
-    def __get_role_read_privileges__(self, roles: List[DataverseSecurityRole]) -> List[DataverseRolePrivilege]:
+    def __get_role_read_privileges__(
+        self, roles: List[DataverseSecurityRole]
+    ) -> List[DataverseRolePrivilege]:
         """
         Retrieve role privileges and filter to only read-related privileges.
         Uses roleprivileges_association for privilege metadata and
@@ -278,10 +294,10 @@ class DataverseAPIClient:
         """
         # Dataverse privilegedepthmask uses bitmask values, not ordinals.
         DEPTH_MASK_MAP = {
-            1: "Basic",          # User/Team
-            2: "Local",          # Business Unit
-            4: "Deep",           # Parent: Business Unit
-            8: "Global",         # Organization
+            1: "Basic",  # User/Team 2^0
+            2: "Local",  # Business Unit 2^1
+            4: "Deep",  # Parent: Business Unit 2^2
+            8: "Global",  # Organization 2^3
         }
 
         # Build a depth lookup from roleprivilegescollection (the intersect entity
@@ -317,7 +333,9 @@ class DataverseAPIClient:
             try:
                 records = self._get_paged(url)
             except Exception as e:
-                self.logger.warning(f"Failed to fetch privileges for role {role.name}: {e}")
+                self.logger.warning(
+                    f"Failed to fetch privileges for role {role.name}: {e}"
+                )
                 continue
 
             for r in records:
@@ -325,7 +343,9 @@ class DataverseAPIClient:
                 access_right = r.get("accessright", 0)
 
                 # Filter to read privileges: name starts with 'prvRead' or accessright includes ReadAccess bit
-                is_read = priv_name.lower().startswith(self.READ_PRIVILEGE_PREFIX.lower())
+                is_read = priv_name.lower().startswith(
+                    self.READ_PRIVILEGE_PREFIX.lower()
+                )
                 if not is_read and not (access_right & self.READ_ACCESS_RIGHT):
                     continue
 
@@ -408,8 +428,7 @@ class DataverseAPIClient:
     def __get_field_security_profiles__(self) -> List[DataverseFieldSecurityProfile]:
         """Retrieve field-level security profiles, their field permissions, and assignments."""
         url = (
-            f"{self.api_url}/fieldsecurityprofiles"
-            "?$select=fieldsecurityprofileid,name"
+            f"{self.api_url}/fieldsecurityprofiles?$select=fieldsecurityprofileid,name"
         )
         records = self._get_paged(url)
         profiles = []
@@ -440,7 +459,9 @@ class DataverseAPIClient:
                     for p in perm_records
                 ]
             except Exception as e:
-                self.logger.warning(f"Failed to fetch field permissions for profile {profile.name}: {e}")
+                self.logger.warning(
+                    f"Failed to fetch field permissions for profile {profile.name}: {e}"
+                )
 
             # Get users assigned to this profile
             user_url = f"{self.api_url}/fieldsecurityprofiles({profile_id})/systemuserprofiles_association/$ref"
@@ -452,7 +473,9 @@ class DataverseAPIClient:
                     if "systemusers(" in ref.get("@odata.id", "")
                 ]
             except Exception as e:
-                self.logger.warning(f"Failed to fetch user assignments for profile {profile.name}: {e}")
+                self.logger.warning(
+                    f"Failed to fetch user assignments for profile {profile.name}: {e}"
+                )
 
             # Get teams assigned to this profile
             team_url = f"{self.api_url}/fieldsecurityprofiles({profile_id})/teamprofiles_association/$ref"
@@ -464,7 +487,9 @@ class DataverseAPIClient:
                     if "teams(" in ref.get("@odata.id", "")
                 ]
             except Exception as e:
-                self.logger.warning(f"Failed to fetch team assignments for profile {profile.name}: {e}")
+                self.logger.warning(
+                    f"Failed to fetch team assignments for profile {profile.name}: {e}"
+                )
 
             profiles.append(profile)
 
@@ -479,7 +504,9 @@ class DataverseAPIClient:
         to determine which users/teams can read which tables.
         """
         permissions = []
-        role_entity_map = self.__build_role_entity_map__(env.role_privileges, env.security_roles)
+        role_entity_map = self.__build_role_entity_map__(
+            env.role_privileges, env.security_roles
+        )
         table_filter_set = set(table_filter) if table_filter else None
 
         # User direct role assignments

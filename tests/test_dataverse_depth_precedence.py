@@ -1,7 +1,10 @@
 import unittest
 
 from policyweaver.plugins.dataverse.api import DataverseAPIClient
-from policyweaver.plugins.dataverse.model import DataverseRolePrivilege, DataverseSecurityRole
+from policyweaver.plugins.dataverse.model import (
+    DataverseRolePrivilege,
+    DataverseSecurityRole,
+)
 
 
 class _FakeLogger:
