@@ -16,6 +16,7 @@ class DataverseUser(CommonBaseModel):
         azure_ad_object_id (Optional[str]): The Azure AD (Entra) object ID.
         is_disabled (Optional[bool]): Whether the user is disabled.
     """
+
     id: Optional[str] = Field(alias="id", default=None)
     name: Optional[str] = Field(alias="name", default=None)
     email: Optional[str] = Field(alias="email", default=None)
@@ -34,6 +35,7 @@ class DataverseTeam(CommonBaseModel):
         azure_ad_object_id (Optional[str]): The Azure AD (Entra) object ID for AAD-backed teams.
         member_ids (Optional[List[str]]): List of systemuserids that are members.
     """
+
     id: Optional[str] = Field(alias="id", default=None)
     name: Optional[str] = Field(alias="name", default=None)
     team_type: Optional[int] = Field(alias="team_type", default=0)
@@ -49,6 +51,7 @@ class DataverseSecurityRole(CommonBaseModel):
         id (Optional[str]): The roleid.
         name (Optional[str]): The role name.
     """
+
     id: Optional[str] = Field(alias="id", default=None)
     name: Optional[str] = Field(alias="name", default=None)
     business_unit_id: Optional[str] = Field(alias="business_unit_id", default=None)
@@ -62,9 +65,12 @@ class DataverseBusinessUnit(CommonBaseModel):
         name (Optional[str]): The business unit name.
         parent_business_unit_id (Optional[str]): The parent business unit ID.
     """
+
     id: Optional[str] = Field(alias="id", default=None)
     name: Optional[str] = Field(alias="name", default=None)
-    parent_business_unit_id: Optional[str] = Field(alias="parent_business_unit_id", default=None)
+    parent_business_unit_id: Optional[str] = Field(
+        alias="parent_business_unit_id", default=None
+    )
 
 
 class DataverseRolePrivilege(CommonBaseModel):
@@ -79,6 +85,7 @@ class DataverseRolePrivilege(CommonBaseModel):
         entity_name (Optional[str]): The logical name of the entity (table).
         can_read (Optional[bool]): Whether the privilege grants read access.
     """
+
     privilege_id: Optional[str] = Field(alias="privilege_id", default=None)
     role_id: Optional[str] = Field(alias="role_id", default=None)
     name: Optional[str] = Field(alias="name", default=None)
@@ -98,10 +105,17 @@ class DataverseFieldPermission(CommonBaseModel):
         attribute_logical_name (Optional[str]): The logical name of the field (column).
         can_read (Optional[int]): 0=Not Allowed, 4=Allowed.
     """
-    field_security_profile_id: Optional[str] = Field(alias="field_security_profile_id", default=None)
-    field_security_profile_name: Optional[str] = Field(alias="field_security_profile_name", default=None)
+
+    field_security_profile_id: Optional[str] = Field(
+        alias="field_security_profile_id", default=None
+    )
+    field_security_profile_name: Optional[str] = Field(
+        alias="field_security_profile_name", default=None
+    )
     entity_name: Optional[str] = Field(alias="entity_name", default=None)
-    attribute_logical_name: Optional[str] = Field(alias="attribute_logical_name", default=None)
+    attribute_logical_name: Optional[str] = Field(
+        alias="attribute_logical_name", default=None
+    )
     can_read: Optional[int] = Field(alias="can_read", default=0)
 
 
@@ -115,11 +129,14 @@ class DataverseFieldSecurityProfile(CommonBaseModel):
         team_ids (Optional[List[str]]): List of teamids assigned to this profile.
         permissions (Optional[List[DataverseFieldPermission]]): The field permissions in this profile.
     """
+
     id: Optional[str] = Field(alias="id", default=None)
     name: Optional[str] = Field(alias="name", default=None)
     user_ids: Optional[List[str]] = Field(alias="user_ids", default_factory=list)
     team_ids: Optional[List[str]] = Field(alias="team_ids", default_factory=list)
-    permissions: Optional[List[DataverseFieldPermission]] = Field(alias="permissions", default_factory=list)
+    permissions: Optional[List[DataverseFieldPermission]] = Field(
+        alias="permissions", default_factory=list
+    )
 
 
 class DataverseTablePermission(CommonBaseModel):
@@ -133,15 +150,20 @@ class DataverseTablePermission(CommonBaseModel):
         depth (Optional[str]): The depth of the read privilege.
         role_name (Optional[str]): The role granting this access.
     """
+
     table_name: Optional[str] = Field(alias="table_name", default=None)
     principal_id: Optional[str] = Field(alias="principal_id", default=None)
     principal_type: Optional[IamType] = Field(alias="principal_type", default=None)
-    principal_business_unit_id: Optional[str] = Field(alias="principal_business_unit_id", default=None)
+    principal_business_unit_id: Optional[str] = Field(
+        alias="principal_business_unit_id", default=None
+    )
     has_read: Optional[bool] = Field(alias="has_read", default=False)
     depth: Optional[str] = Field(alias="depth", default=None)
     role_id: Optional[str] = Field(alias="role_id", default=None)
     role_name: Optional[str] = Field(alias="role_name", default=None)
-    role_business_unit_id: Optional[str] = Field(alias="role_business_unit_id", default=None)
+    role_business_unit_id: Optional[str] = Field(
+        alias="role_business_unit_id", default=None
+    )
 
 
 class DataverseEnvironment(CommonBaseModel):
@@ -157,15 +179,30 @@ class DataverseEnvironment(CommonBaseModel):
         field_security_profiles (Optional[List[DataverseFieldSecurityProfile]]): Field-level security.
         table_permissions (Optional[List[DataverseTablePermission]]): Resolved table-level permissions.
     """
+
     users: Optional[List[DataverseUser]] = Field(alias="users", default_factory=list)
     teams: Optional[List[DataverseTeam]] = Field(alias="teams", default_factory=list)
-    business_units: Optional[List[DataverseBusinessUnit]] = Field(alias="business_units", default_factory=list)
-    security_roles: Optional[List[DataverseSecurityRole]] = Field(alias="security_roles", default_factory=list)
-    role_privileges: Optional[List[DataverseRolePrivilege]] = Field(alias="role_privileges", default_factory=list)
-    user_role_assignments: Optional[dict] = Field(alias="user_role_assignments", default_factory=dict)
-    team_role_assignments: Optional[dict] = Field(alias="team_role_assignments", default_factory=dict)
-    field_security_profiles: Optional[List[DataverseFieldSecurityProfile]] = Field(alias="field_security_profiles", default_factory=list)
-    table_permissions: Optional[List[DataverseTablePermission]] = Field(alias="table_permissions", default_factory=list)
+    business_units: Optional[List[DataverseBusinessUnit]] = Field(
+        alias="business_units", default_factory=list
+    )
+    security_roles: Optional[List[DataverseSecurityRole]] = Field(
+        alias="security_roles", default_factory=list
+    )
+    role_privileges: Optional[List[DataverseRolePrivilege]] = Field(
+        alias="role_privileges", default_factory=list
+    )
+    user_role_assignments: Optional[dict] = Field(
+        alias="user_role_assignments", default_factory=dict
+    )
+    team_role_assignments: Optional[dict] = Field(
+        alias="team_role_assignments", default_factory=dict
+    )
+    field_security_profiles: Optional[List[DataverseFieldSecurityProfile]] = Field(
+        alias="field_security_profiles", default_factory=list
+    )
+    table_permissions: Optional[List[DataverseTablePermission]] = Field(
+        alias="table_permissions", default_factory=list
+    )
 
     def lookup_user_by_id(self, user_id: str) -> DataverseUser:
         user = [u for u in self.users if u.id == user_id]
@@ -178,7 +215,9 @@ class DataverseEnvironment(CommonBaseModel):
     def get_user_teams(self, user_id: str) -> List[DataverseTeam]:
         return [t for t in self.teams if user_id in (t.member_ids or [])]
 
-    def lookup_business_unit_by_id(self, business_unit_id: str) -> DataverseBusinessUnit:
+    def lookup_business_unit_by_id(
+        self, business_unit_id: str
+    ) -> DataverseBusinessUnit:
         business_unit = [b for b in self.business_units if b.id == business_unit_id]
         return business_unit[0] if business_unit else None
 
@@ -189,6 +228,7 @@ class DataverseSourceConfig(CommonBaseModel):
     Attributes:
         environment_url (Optional[str]): The Dataverse environment URL (e.g. https://org.crm.dynamics.com).
     """
+
     environment_url: Optional[str] = Field(alias="environment_url", default=None)
 
 
@@ -198,4 +238,5 @@ class DataverseSourceMap(SourceMap):
     Attributes:
         dataverse (Optional[DataverseSourceConfig]): The Dataverse source configuration.
     """
+
     dataverse: Optional[DataverseSourceConfig] = Field(alias="dataverse", default=None)
