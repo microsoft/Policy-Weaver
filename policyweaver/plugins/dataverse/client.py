@@ -162,7 +162,7 @@ class DataversePolicyWeaver(PolicyWeaverCore):
         policies = []
         for _, data in role_map.items():
             # Basic depth requires per-principal roles to prevent over-granting.
-            # A shared role with _ownerid_value in ('A','B') lets both see each
+            # A shared role with ownerid in ('A','B') lets both see each
             # other's rows.  Splitting gives each user their own ownership filter.
             if self.__role_has_basic_effective_depth__(data["perms"]):
                 per_principal = self.__build_per_principal_roles__(
@@ -288,7 +288,7 @@ class DataversePolicyWeaver(PolicyWeaverCore):
 
         Basic depth means "see rows you own".  Fabric Data Access Roles apply the
         same row filter to every member, so a shared role with
-        _ownerid_value in ('A','B') would let both A and B see each other's rows.
+        ownerid in ('A','B') would let both A and B see each other's rows.
         This method creates one Fabric role per resolved identity so each user's
         filter contains only their own ownership scope (their Dataverse user ID
         plus the IDs of teams they belong to within this role).
@@ -657,18 +657,18 @@ class DataversePolicyWeaver(PolicyWeaverCore):
             if not descendants:
                 return "false"
             escaped = "','".join(descendants)
-            return f"_owningbusinessunit_value in ('{escaped}')"
+            return f"owningbusinessunit in ('{escaped}')"
 
         if depth == "Local":
             if not role_business_unit_id:
                 return "false"
-            return f"_owningbusinessunit_value = '{role_business_unit_id}'"
+            return f"owningbusinessunit = '{role_business_unit_id}'"
 
         if depth == "Basic":
             if not principal_ids:
                 return "false"
             escaped = "','".join(sorted(principal_ids))
-            return f"_ownerid_value in ('{escaped}')"
+            return f"ownerid in ('{escaped}')"
 
         # Unknown or unrecognized depth — fail closed (deny all rows)
         self.logger.warning(
@@ -687,9 +687,9 @@ class DataversePolicyWeaver(PolicyWeaverCore):
         """
         Build BU-aware row constraints by mapping Dataverse read depth to Fabric row filters:
         - Global: no filter
-        - Deep: _owningbusinessunit_value in role BU and descendants
-        - Local: _owningbusinessunit_value equals role BU
-        - Basic: _ownerid_value equals one of the role principals
+        - Deep: owningbusinessunit in role BU and descendants
+        - Local: owningbusinessunit equals role BU
+        - Basic: ownerid equals one of the role principals
 
         When `basic_ownership_override` is provided, it replaces the aggregated
         principal ID set for Basic-depth tables.  This is used by the per-principal
