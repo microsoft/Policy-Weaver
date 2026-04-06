@@ -190,7 +190,7 @@ https://github.com/user-attachments/assets/4de93aa3-e6c2-4c5b-b220-b30f6bfafd2f
 
 ## :thread: Dataverse specific setup (Beta)
 
-> :warning: **Beta Notice:** The Dataverse connector is currently in **beta**. While table-level and column-level security synchronization are fully supported, **row-level security is not yet supported**. Behavior and configuration options may change in future releases. Please provide feedback via [https://aka.ms/pwfeedback](https://aka.ms/pwfeedback).
+> :warning: **Beta Notice:** The Dataverse connector is currently in **beta**.Behavior and configuration options may change in future releases. Please provide feedback via [https://aka.ms/pwfeedback](https://aka.ms/pwfeedback).
 
 ### Microsoft Dataverse Configuration
 
@@ -339,13 +339,13 @@ Here ´s how the config.yaml should be adjusted to your environment.
     - tenant_id: your fabric tenant id (you can find it in the URL "help" -> "about Fabric" section of the Fabric UI)
     - fabric_role_suffix: suffix for the fabric roles created by Policy Weaver (default: PW)
     - delete_default_reader_role: true/false (if true, the DefaultReader role created by Fabric will be deleted, if false it will be kept, default: true)
-    - policy_mapping: table_based / role_based (table_based: create one role per table, role_based: create one role per role/group, default: table_based)
+    - policy_mapping: role_based: create one role per role/group, default: role_based)
 - constraints:
     - columns: (optional, if not set, no column level security will be applied, see below for details [Column Level Security](#books-column-level-security))
       - columnlevelsecurity: true/false (if true, column level security will be applied at best effort. Default: false)
       - fallback: grant/deny (if a not supported column mask is found, the fallback will be applied. Default: deny)
     - rows: (optional, if not set, no row level security will be applied, see below for details [Row Level Security](#books-row-level-security))
-      - rowlevelsecurity: true/false (if true, row level security will be applied at best effort. Default: false)
+      - RLS is always applied for non-Global depths to maintain access parity
       - fallback: grant/deny (if a not supported row mask is found, the fallback will be applied. Default: deny)
 
 - service_principal:
@@ -477,7 +477,7 @@ If for a specific role all columns of a table are denied, the whole table is den
 
 ## :books: Row Level Security
 
-Row level security is an optional feature that can be enabled in the config file. If enabled, Policy Weaver will try to apply row level security at best effort and fallback to the configured fallback if a not supported row access policy is found.
+Row level security is supported.
 
 
 :warning: NOTE: Row level security is only enabled if the config `policy_mapping` is set to `role_based`. In the case of table_based mapping there would be an unforeseeable high number of roles created in Fabric. That´s why it can only be used in role_based mapping.
@@ -485,11 +485,9 @@ Row level security is an optional feature that can be enabled in the config file
 
 Databricks and Snowflake support various row level security variations. Dataverse uses privilege depth and business unit hierarchy semantics. OneLake Security sets row level security filters not on a table scope but a "table + role"-scope. For many use cases we can map source-side semantics to this "table + role"-scope.
 
-> :pushpin: **Note:** Row level security is **not yet supported** for the Dataverse connector. This is planned for a future release.
-
 
 If you have a row access policy that is not supported by Policy Weaver, you can configure the fallback to either grant or deny access to the whole table by default. This also includes unsupported policies like aggregation, join or projection policies in Snowflake.
-:warning: NOTE: Our recommendation is to set the fallback to deny to avoid unintentional data exposure. If you identify a scenaro where there is a data exposure risk, please give us feedback and we´ll try to fix it asap. Note though that this solution is provided as-is without any warranties.
+:warning: NOTE: Our recommendation is to set the fallback to deny to avoid unintentional data exposure. If you identify a scenario where there is a data exposure risk, please give us feedback and we´ll try to fix it asap. Note though that this solution is provided as-is without any warranties.
 
 
 Supported row access policies:
