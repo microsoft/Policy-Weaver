@@ -477,7 +477,7 @@ If for a specific role all columns of a table are denied, the whole table is den
 
 ## :books: Row Level Security
 
-Row level security is supported.
+Row level security is an optional feature that can be enabled in the config file. If enabled, Policy Weaver will try to apply row level security at best effort and fallback to the configured fallback if a not supported row access policy is found.
 
 
 :warning: NOTE: Row level security is only enabled if the config `policy_mapping` is set to `role_based`. In the case of table_based mapping there would be an unforeseeable high number of roles created in Fabric. That´s why it can only be used in role_based mapping.
