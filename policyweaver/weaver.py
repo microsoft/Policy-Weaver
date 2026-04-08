@@ -14,6 +14,7 @@ from policyweaver.core.api.fabric import FabricAPI
 from policyweaver.core.api.microsoftgraph import MicrosoftGraphClient
 from policyweaver.plugins.databricks.client import DatabricksPolicyWeaver
 from policyweaver.plugins.snowflake.client import SnowflakePolicyWeaver
+from policyweaver.plugins.dataverse.client import DataversePolicyWeaver
 from policyweaver.models.fabric import (
     DataAccessPolicy,
     PolicyDecisionRule,
@@ -102,6 +103,8 @@ class WeaverAgent:
                 src = DatabricksPolicyWeaver(config)
             case PolicyWeaverConnectorType.SNOWFLAKE:
                 src = SnowflakePolicyWeaver(config)
+            case PolicyWeaverConnectorType.DATAVERSE:
+                src = DataversePolicyWeaver(config)
             case _:
                 pass
         
@@ -186,6 +189,52 @@ class WeaverAgent:
         self.__get_current_access_policy__()
         await self.__apply_role_policies__(policy_export)
 
+    def split_off_new_role_policy(policy: RolePolicy, part_number: int, min: int, max: int) -> RolePolicy:
+        """Split a RolePolicy into a new RolePolicy with a subset of permission scopes.
+        This method creates a new RolePolicy object that contains a subset of the permission scopes
+        from the original policy, based on the specified minimum and maximum indices.
+        Args:
+            policy (RolePolicy): The original RolePolicy object to split.
+            part_number (int): The part number for naming the new policy.
+            min (int): The starting index of the permission scopes to include in the new policy.
+            max (int): The ending index of the permission scopes to include in the new policy.
+        Returns:
+            RolePolicy: A new RolePolicy object containing the specified subset of permission scopes.
+        """
+        if max > len(policy.permissionscopes):
+            max = len(policy.permissionscopes)
+
+        new_policy = RolePolicy(
+            name=f"{policy.name}Part{part_number}",
+            permissionscopes=policy.permissionscopes[min:max],
+            permissionobjects=policy.permissionobjects,
+            columnconstraints=policy.columnconstraints,
+            rowconstraints=policy.rowconstraints
+        )
+        return new_policy
+
+
+    def split_permission_scopes(policy: RolePolicy) -> List[RolePolicy]:
+        """
+        Split a RolePolicy with multiple permission scopes into multiple RolePolicy objects, each with a single permission scope.
+        This method is used to handle policies that have multiple permissions by creating separate policies for each permission scope.
+        Args:
+            policy (RolePolicy): The original RolePolicy object containing multiple permission scopes.
+        Returns:
+            List[RolePolicy]: A list of RolePolicy objects, each containing a single permission scope.
+        """
+
+        if len(policy.permissionscopes) <= 500:
+            return [policy] # No need to split if within limits
+        
+        # iterate by 500
+        policies = []
+        for i, j in enumerate(range(0, len(policy.permissionscopes), 500)):
+            new_policy = WeaverAgent.split_off_new_role_policy(policy, i+1, j, j+500)
+            policies.append(new_policy)
+
+        return policies
+
     async def __apply_role_policies__(self, policy_export: RolePolicyExport) -> None:
         """
         Apply the policies to Microsoft Fabric by creating or updating data access policies.
@@ -197,13 +246,15 @@ class WeaverAgent:
         access_policies = []
 
         for policy in policy_export.policies:
-            access_policy = await self.__build_data_access_role_policy__(
-                policy, FabricPolicyAccessType.READ
-            )
-            if not access_policy:
-                continue
-            self.fabric_snapshot_handler(access_policy)
-            access_policies.append(access_policy)
+            policies =  WeaverAgent.split_permission_scopes(policy)
+            for p in policies:
+                access_policy = await self.__build_data_access_role_policy__(
+                    p, FabricPolicyAccessType.READ
+                )
+                if not access_policy:
+                    continue
+                self.fabric_snapshot_handler(access_policy)
+                access_policies.append(access_policy)
 
         inserted_policies = len(access_policies)
         updated_policies = 0
@@ -381,9 +432,14 @@ class WeaverAgent:
         Returns:
             str: The table path in the format "Tables/{schema}/{table}" if mapped, otherwise None.
         """
+        schema_nm = schema.strip() if isinstance(schema, str) else schema
+
         if not table:
-            if schema:
-                return f"Tables/{schema}"
+            if self.config.type == PolicyWeaverConnectorType.DATAVERSE:
+                # Dataverse table scopes are table-based and do not use schema path segments.
+                return "*"
+            if schema_nm:
+                return f"Tables/{schema_nm}"
             return "*"
 
         if self.config.mapped_items:
@@ -396,7 +452,12 @@ class WeaverAgent:
             matched_tbl = None
 
         table_nm = table if not matched_tbl else matched_tbl.mirror_table_name
-        table_path = f"Tables/{schema}/{table_nm}"         
+
+        if self.config.type == PolicyWeaverConnectorType.DATAVERSE:
+            # Dataverse paths are /Tables/{table} (no /{schema}/ segment).
+            table_path = f"Tables/{table_nm}"
+        else:
+            table_path = f"Tables/{schema_nm}/{table_nm}"
 
         return table_path
 
@@ -697,6 +758,25 @@ class WeaverAgent:
         if not table_paths:
             self.logger.warning(f"POLICY WEAVER - No valid table mappings found for policy {policy.name}. Skipping...")
             return None
+        
+        ## Remove column constraints if there is no matching table path
+        ## A constraint is valid if its table_path is in table_paths, or if "*" is in table_paths,
+        ## or if a parent path of the constraint's table_path is in table_paths.
+        table_paths_set = set(table_paths)
+        has_wildcard = "*" in table_paths_set
+
+        def _matches_table_paths(path: str) -> bool:
+            if has_wildcard or path in table_paths_set:
+                return True
+            # Check if any table_path is a parent of this constraint path
+            # e.g. /Tables/schema in table_paths should match /Tables/schema/table
+            for tp in table_paths_set:
+                if path.startswith(tp + "/"):
+                    return True
+            return False
+
+        columnconstraints = [cc for cc in columnconstraints if _matches_table_paths(cc.table_path)]
+        rowconstraints = [rc for rc in rowconstraints if _matches_table_paths(rc.table_path)]
 
         permission_scopes = [
                         PolicyPermissionScope(

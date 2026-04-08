@@ -18,6 +18,7 @@ dependencies = [
     "pydantic>=2.10.5",
     "python-dotenv>=1.0.1",
     "pyyaml>=6.0.2",
+    "requests>=2.31.0",
     "snowflake-connector-python>=3.16.0"
 ]
 
@@ -38,7 +39,7 @@ classifiers = [
 ]
 
 license-files = ["LICENSE"]
-keywords = ["Fabric", "Fabric Access Policy", "Databricks", "BigQuery", "Snowflake"]
+keywords = ["Fabric", "Fabric Access Policy", "Databricks", "BigQuery", "Snowflake", "Dataverse", "Dynamics 365"]
 
 [tool.setuptools]
 py-modules = []

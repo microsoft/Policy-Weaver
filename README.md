@@ -39,7 +39,7 @@ A Python-based accelerator designed to automate the synchronization of security 
 - **Microsoft Fabric Support**: Direct integration with Fabric Mirrored Databases/Catalogs and OneLake Security.
 - **Runs anywhere**: It can be run within Fabric Notebook or from anywhere with a Python runtime.
 - **Effective Policies**: Resolves effective read privileges automatically, traversing nested groups and roles as required.
-- **Pluggable Framework**: Supports Azure Databricks and Snowflake policies, with more connectors planned.
+- **Pluggable Framework**: Supports Azure Databricks, Snowflake, and Dataverse policies, with more connectors planned.
 - **Secure**: Can use Azure Key Vault to securely manage sensitive information like Service Principal credentials and API tokens.
 
 
@@ -49,6 +49,7 @@ A Python-based accelerator designed to automate the synchronization of security 
   - [General Prerequisites](#clipboard-general-prerequisites)
   - [Databricks specific setup](#thread-databricks-specific-setup)
   - [Snowflake specific setup](#thread-snowflake-specific-setup)
+  - [Dataverse specific setup (Beta)](#thread-dataverse-specific-setup-beta)
 - [Config File values](#books-config-file-values)
 - [Column Level Security](#books-column-level-security)
 - [Row Level Security](#books-row-level-security)
@@ -63,7 +64,7 @@ $ pip install policy-weaver
 
 # :rocket: Getting Started
 
-Follow the General Prerequisites and Installation steps below [here](#clipboard-general-prerequisites). Then, depending on your source catalog, follow the specific setup instructions for either [Databricks](#thread-databricks-specific-setup) or [Snowflake](#thread-snowflake-specific-setup).
+Follow the General Prerequisites and Installation steps below [here](#clipboard-general-prerequisites). Then, depending on your source catalog, follow the specific setup instructions for [Databricks](#thread-databricks-specific-setup), [Snowflake](#thread-snowflake-specific-setup), or [Dataverse](#thread-dataverse-specific-setup-beta).
 If you run into any issues, wish for new features or let us know that you like the accelerator, let us know via our feedback form [https://aka.ms/pwfeedback](https://aka.ms/pwfeedback)
 
 ## :clipboard: General Prerequisites
@@ -187,6 +188,141 @@ All done! You can now check your Microsoft Fabric Mirrored Snowflake Warehouse´
 https://github.com/user-attachments/assets/4de93aa3-e6c2-4c5b-b220-b30f6bfafd2f
 
 
+## :thread: Dataverse specific setup (Beta)
+
+> :warning: **Beta Notice:** The Dataverse connector is currently in **beta**.Behavior and configuration options may change in future releases. Please provide feedback via [https://aka.ms/pwfeedback](https://aka.ms/pwfeedback).
+
+### Microsoft Dataverse Configuration
+
+We assume you have a Dataverse environment (e.g. Dynamics 365, Power Platform) with security roles, users, and teams configured. 
+
+We also assume you use Dataverse´s Fabric Link to integrate with Microsoft Fabric. You need to enable OneLake Security by opening the Item in the Fabric UI and clicking on "Manage OneLake data access".
+
+### Prerequisites
+
+The Dataverse connector **does not require Microsoft Graph API permissions** (`User.Read.All`) on the Service Principal. Dataverse provides Azure AD object IDs for users and teams directly, so principal resolution happens without Graph lookups in most cases.
+
+However, the Service Principal needs the following:
+
+#### 1. Register an App in Azure Entra ID
+
+If you haven't already created a Service Principal (see [General Prerequisites](#clipboard-general-prerequisites)):
+- Go to **Azure Portal** > **Entra ID** > **App registrations** > **New registration**
+- Note the **Client ID** and **Tenant ID**
+- Under **Certificates & secrets**, create a client secret
+
+#### 2. Create an Application User in Dataverse
+
+This is the most critical step and the one most commonly missed:
+
+1. Go to the [Power Platform Admin Center](https://admin.powerplatform.microsoft.com/) → select your environment
+2. Navigate to **Settings** > **Users + permissions** > **Application users**
+3. Click **+ New app user**
+4. Select the app registration you created in step 1
+5. Assign a **Business Unit**
+6. Assign one or more **Security Roles** (see step 3)
+
+> :pushpin: **Note:** Unlike Microsoft Graph, Dataverse does **not** require API permissions in the Entra app registration. The Application User + Security Role in Dataverse is what controls access.
+
+#### 3. Assign the Right Security Role
+
+The Service Principal (Application User) needs **Organization-level Read** access on the following Dataverse tables:
+
+| Table | Reason |
+|---|---|
+| `systemuser` | Fetch users and their Azure AD object IDs |
+| `team` | Fetch teams and team memberships |
+| `role` | Fetch security roles |
+| `roleprivileges` | Fetch privileges per role (including depth) |
+| `privilege` | Resolve privilege names and access rights |
+| `systemuserroles` | User-to-role assignments |
+| `teamroles` | Team-to-role assignments |
+| `fieldsecurityprofile` | Field-level security profiles |
+| `fieldpermission` | Field-level permissions per profile |
+
+The built-in **System Administrator** role covers all of these. For least-privilege access, create a custom security role with **Organization-level Read** on each table listed above.
+
+#### 4. Verify the Environment URL
+
+Make sure your `environment_url` in the config matches the actual Dataverse environment URL (e.g. `https://org21208c7b.crm.dynamics.com`). The OAuth token scope is derived from this URL.
+
+### What Policy Weaver reads from Dataverse
+
+Policy Weaver fetches the following security metadata from your Dataverse environment:
+
+- **Users**: All active, non-disabled system users with Azure AD object IDs
+- **Teams**: All teams (Owner, Access, AAD Security Group, AAD Office Group) with memberships
+- **Security Roles**: All security roles and their read privileges per table
+- **Privilege Depth**: The scope of each read privilege (Basic/User, Local/Business Unit, Deep/Parent BU, Global/Organization)
+- **Field Security Profiles**: Column-level security profiles with read permissions and user/team assignments
+
+### Policy Mapping Modes
+
+- **`role_based`** (recommended): Creates one Fabric role per Dataverse security role. Supports column-level security.
+- **`table_based`**: Creates one Fabric role per table with all principals who have read access. Does **not** support column-level security.
+
+### Update your Configuration file
+
+Download the [config.yaml](./config.yaml) file template and update it based on your environment.
+
+In general, you should fill the config file as described here: [Config File values](#books-config-file-values).
+
+For Dataverse specifically, you will need to provide:
+
+- **environment_url**: Your Dataverse environment URL (e.g. `https://org21208c7b.crm.dynamics.com`)
+
+Set the `type` to `DATAVERSE`.
+
+Here is a minimal example config:
+
+```yaml
+keyvault:
+  use_key_vault: false
+fabric:
+  mirror_id: 845-----45567
+  mirror_name: dataversemirror
+  workspace_id: 9d-----7c
+  tenant_id: 349-----e2885
+  fabric_role_suffix: PW
+  delete_default_reader_role: true
+  policy_mapping: role_based
+constraints:
+  columns:
+    columnlevelsecurity: true
+    fallback: deny
+  rows:
+    rowlevelsecurity: false
+    fallback: deny
+service_principal:
+  client_id: your-client-id
+  client_secret: your-client-secret
+  tenant_id: your-tenant-id
+source:
+  name: your-dataverse-environment
+type: DATAVERSE
+dataverse:
+  environment_url: https://yourorg.crm.dynamics.com
+```
+
+### Run the Weaver!
+
+This is all the code you need. Just make sure Policy Weaver can access your YAML configuration file.
+
+```python
+#import the PolicyWeaver library
+from policyweaver.weaver import WeaverAgent
+from policyweaver.plugins.dataverse.model import DataverseSourceMap
+
+#Load config
+config = DataverseSourceMap.from_yaml("path_to_your_config.yaml")
+
+#run the PolicyWeaver
+await WeaverAgent.run(config)
+```
+
+All done! You can now check your Microsoft Fabric Mirrored Dataverse database's new OneLake Security policies.
+
+
 ## :books: Config File values
 
 Here ´s how the config.yaml should be adjusted to your environment.
@@ -203,13 +339,13 @@ Here ´s how the config.yaml should be adjusted to your environment.
     - tenant_id: your fabric tenant id (you can find it in the URL "help" -> "about Fabric" section of the Fabric UI)
     - fabric_role_suffix: suffix for the fabric roles created by Policy Weaver (default: PW)
     - delete_default_reader_role: true/false (if true, the DefaultReader role created by Fabric will be deleted, if false it will be kept, default: true)
-    - policy_mapping: table_based / role_based (table_based: create one role per table, role_based: create one role per role/group, default: table_based)
+    - policy_mapping: role_based: create one role per role/group, default: role_based)
 - constraints:
     - columns: (optional, if not set, no column level security will be applied, see below for details [Column Level Security](#books-column-level-security))
       - columnlevelsecurity: true/false (if true, column level security will be applied at best effort. Default: false)
       - fallback: grant/deny (if a not supported column mask is found, the fallback will be applied. Default: deny)
     - rows: (optional, if not set, no row level security will be applied, see below for details [Row Level Security](#books-row-level-security))
-      - rowlevelsecurity: true/false (if true, row level security will be applied at best effort. Default: false)
+      - RLS is always applied for non-Global depths to maintain access parity
       - fallback: grant/deny (if a not supported row mask is found, the fallback will be applied. Default: deny)
 
 - service_principal:
@@ -221,7 +357,7 @@ Here ´s how the config.yaml should be adjusted to your environment.
   - name of the unity catalog or snowflake database
   - schemas: list of schemas to include. If not set, all schemas are included. For each schema you can give a list of tables which should be included. If not set all tables are included (see examples below)
 
-- type: either 'UNITY_CATALOG' for databricks or 'SNOWFLAKE' for snowflake
+- type: either 'UNITY_CATALOG' for databricks, 'SNOWFLAKE' for snowflake, or 'DATAVERSE' for dataverse
 
 Here is an example config.yaml **NOT** using keyvault:
 
@@ -322,7 +458,7 @@ Column level security is an optional feature that can be enabled in the config f
 
 :warning: NOTE: Column level security is only enabled if the config `policy_mapping` is set to `role_based`. In the case of table_based mapping there would be an unforeseeable high number of roles created in Fabric. That´s why it can only be used in role_based mapping.
 
-Databricks and Snowflake support column level security by column mask policies. However, OneLake Security currently only supports column level security by denying access to specific columns.
+Databricks and Snowflake support column level security by column mask policies. Dataverse supports column level security via field security profiles. OneLake Security currently supports column level security by restricting visible columns in role constraints.
 
 Given the biggest use case for column mask policies is to hide the whole column, this still aligns. However, if you have a column mask policy that is not supported by Policy Weaver, you can configure the fallback to either grant or deny access to this column by default.
 
@@ -333,23 +469,25 @@ Supported column mask policies:
 - Snowflake:
   - Allow only a specific role to see the real value. I.e. the function looks like `CASE WHEN CURRENT_ROLE() IN ('HR_ROLE') THEN ssn ELSE '<arbitrary_value>' END`
   - Allow everyone except a specific role to see the real value.  I.e. the function looks like `CASE WHEN CURRENT_ROLE() IN ('HR_ROLE') THEN '<arbitrary_value>' ELSE ssn END`
+- Dataverse:
+  - Field-level read permissions from Dataverse field security profiles are mapped to Fabric column constraints for role-based policies.
 
 If for a specific role all columns of a table are denied, the whole table is denied to this role and will not show up in the Fabric for this role.
 :warning: NOTE: Our recommendation is to set the fallback to deny to avoid unintentional data exposure. If you identify a scenaro where there is a data exposure risk, please give us feedback and we´ll try to fix it asap. Note though that this solution is provided as-is without any warranties.
 
 ## :books: Row Level Security
 
-Row level security is an optional feature that can be enabled in the config file. If enabled, Policy Weaver will try to apply row level security at best effort and fallback to the configured fallback if a not supported row access policy is found.
+Row level security is supported.
 
 
 :warning: NOTE: Row level security is only enabled if the config `policy_mapping` is set to `role_based`. In the case of table_based mapping there would be an unforeseeable high number of roles created in Fabric. That´s why it can only be used in role_based mapping.
 
 
-Databricks and Snowflake support various row level security variations. We currently only support simple row access policies defined on top of a table. OneLake Security sets row level security filters not on a table scope but a "table + role"-scope. For many use cases we can map the simple row access policies to this "table + role"-scope.
+Databricks and Snowflake support various row level security variations. Dataverse uses privilege depth and business unit hierarchy semantics. OneLake Security sets row level security filters not on a table scope but a "table + role"-scope. For many use cases we can map source-side semantics to this "table + role"-scope.
 
 
 If you have a row access policy that is not supported by Policy Weaver, you can configure the fallback to either grant or deny access to the whole table by default. This also includes unsupported policies like aggregation, join or projection policies in Snowflake.
-:warning: NOTE: Our recommendation is to set the fallback to deny to avoid unintentional data exposure. If you identify a scenaro where there is a data exposure risk, please give us feedback and we´ll try to fix it asap. Note though that this solution is provided as-is without any warranties.
+:warning: NOTE: Our recommendation is to set the fallback to deny to avoid unintentional data exposure. If you identify a scenario where there is a data exposure risk, please give us feedback and we´ll try to fix it asap. Note though that this solution is provided as-is without any warranties.
 
 
 Supported row access policies:
@@ -361,6 +499,12 @@ Supported row access policies:
 - Snowflake:
   - Allow only specific groups to see the values in the form of: `current_role() in ('SENSITIVE')`
   - Based on group membership allow access to certain rows via a CASE statement in the form of: `CASE WHEN current_role() in ('SENSITIVE') THEN true  WHEN current_role() in ('COUNTRY') THEN Id = 'T001' ELSE false END`
+
+- Dataverse (role-based mapping):
+  - `Global` depth: no row filter is applied.
+  - `Deep` depth: rows are filtered to the role business unit and descendant business units.
+  - `Local` depth: rows are filtered to the role business unit.
+  - `Basic` depth: rows are filtered to records owned by principals in the role.
 
 
 If you see demand for more (simple) row access policies which are not supported, please give us feedback and we´ll try to add them.

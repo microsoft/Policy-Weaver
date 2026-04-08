@@ -34,3 +34,5 @@ snowflake:
   private_key_file: <path to the private key file>
   password: <password to login or passphrase for the private key if applicable>
   warehouse: <warehouse name>
+dataverse:
+  environment_url: <your Dataverse environment URL e.g. https://org.crm.dynamics.com>
