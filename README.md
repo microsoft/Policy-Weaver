@@ -159,10 +159,11 @@ await WeaverAgent.run(config)
 
 All done! You can now check your Microsoft Fabric Mirrored Azure Databricks catalog´s new One Lake Security policies.
 
-<!-- The local MP4 renders in VS Code Markdown Preview. -->
+<!-- VS Code renders the local MP4 below; GitHub renders the standalone attachment URL after it. -->
 <video src="./assets/PolicyWeaverDBX.mp4" controls width="100%">
   Your Markdown viewer does not support embedded video. <a href="./assets/PolicyWeaverDBX.mp4">Watch the demo (PolicyWeaverDBX.mp4)</a>.
 </video>
+https://github.com/user-attachments/assets/4bacb45f-c019-4389-a711-974ffb550884
 
 ### Verify enforcement
 
@@ -235,10 +236,11 @@ await WeaverAgent.run(config)
 
 All done! You can now check your Microsoft Fabric Mirrored Snowflake Warehouse´s new One Lake Security policies.
 
-<!-- The local MP4 renders in VS Code Markdown Preview. -->
+<!-- VS Code renders the local MP4 below; GitHub renders the standalone attachment URL after it. -->
 <video src="./assets/PolicyWeaverSnowflake.mp4" controls width="100%">
   Your Markdown viewer does not support embedded video. <a href="./assets/PolicyWeaverSnowflake.mp4">Watch the demo (PolicyWeaverSnowflake.mp4)</a>.
 </video>
+https://github.com/user-attachments/assets/4de93aa3-e6c2-4c5b-b220-b30f6bfafd2f
 
 ## :thread: Dataverse specific setup (Beta)
 
