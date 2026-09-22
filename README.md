@@ -77,6 +77,38 @@ Before installing and running this solution, ensure you have:
 
 > :pushpin: **Note:** Every source catalog has additional pre-requisites
 
+### Prerequisites for the *consumers* of the data
+
+The prerequisites above let Policy Weaver **write** OneLake security roles. The following are
+required for those roles to be **enforced** when a user queries the data. Without them Policy
+Weaver reports success and the roles either have no effect or deny everything.
+
+#### 1. Set the SQL analytics endpoint to *User's identity access mode*
+
+Newly created SQL analytics endpoints start in **delegated identity access mode**, in which
+OneLake security roles are **ignored** and access is governed only by SQL `GRANT`/`REVOKE`.
+
+> SQL analytics endpoint -> **Security** tab -> **View data access mode** ->
+> **Data access mode settings** -> **User's identity access mode** -> Apply
+
+Requires workspace **Admin** or **Member**, and is needed **once per endpoint**. Changing the
+mode briefly makes all SQL analytics endpoints in the workspace unavailable and cancels
+running queries, so prefer off-hours.
+
+:warning: This setting lives on the endpoint item. If the mirrored item is **deleted and
+recreated, the setting is lost** and must be reapplied. There is no REST API for it.
+
+#### 2. Give every principal in a role Fabric access to the item - including groups
+
+A principal named in a OneLake security role must also hold Read permission on the Fabric item
+(for example via the **Viewer** workspace role). If a role names an Entra group, that **group
+itself** must hold the workspace role; granting it only to a *member* of the group is not
+sufficient.
+
+#### 3. Use the **Viewer** workspace role for governed users
+
+Workspace **Admin**, **Member**, and **Contributor** bypass OneLake security entirely and read
+all data regardless of the roles Policy Weaver writes.
 
 
 ## :thread: Databricks specific setup
@@ -87,6 +119,9 @@ We assume you have an Entra ID integrated Unity Catalog in your Azure Databricks
 :clipboard: Note that we only sync groups, users and service principals on account level, i.e. specifically no legacy "local" workspace groups. If you still use local workspace groups, please migrate them: [Link to Documentation](https://learn.microsoft.com/en-us/azure/databricks/admin/users-groups/workspace-local-groups)
 
 We also assume you already have a mirrored catalog in Microsoft Fabric. If not, please follow the steps in [Create a mirrored catalog in Microsoft Fabric](https://learn.microsoft.com/en-us/fabric/onelake/mirror-azure-databricks-catalog). You need to enable One Lake Security by opening the Item in the Fabric UI and click on "Manage OneLake data access".
+
+> :pushpin: Enabling OneLake security is necessary but **not sufficient** for the SQL analytics
+> endpoint. See [Prerequisites for the consumers of the data](#prerequisites-for-the-consumers-of-the-data).
 
 
 <img width="570" height="268" alt="image" src="https://github.com/user-attachments/assets/462e8123-5929-427e-9408-31df95d44a15" />
@@ -124,7 +159,23 @@ await WeaverAgent.run(config)
 
 All done! You can now check your Microsoft Fabric Mirrored Azure Databricks catalog´s new One Lake Security policies.
 
-https://github.com/user-attachments/assets/4bacb45f-c019-4389-a711-974ffb550884
+<!-- The local MP4 renders in VS Code Markdown Preview. -->
+<video src="./assets/PolicyWeaverDBX.mp4" controls width="100%">
+  Your Markdown viewer does not support embedded video. <a href="./assets/PolicyWeaverDBX.mp4">Watch the demo (PolicyWeaverDBX.mp4)</a>.
+</video>
+
+### Verify enforcement
+
+Confirming the roles exist is **not** sufficient - both issues above produce roles that look
+correct but are not enforced. Verify with a real restricted identity:
+
+1. Sign in as a user with the **Viewer** workspace role who is granted **some but not all**
+   tables in the source catalog. Do not use an Admin, Member, or Contributor.
+2. Query a table the user **should** be able to read - this should succeed.
+3. Query a table the user should **not** be able to read - this should be **denied**.
+
+If step 3 returns rows, the SQL analytics endpoint is still in delegated identity access mode.
+If step 2 is denied, the user or their group is likely missing Fabric access to the item.
 
 
 ## :thread: Snowflake specific setup
@@ -184,9 +235,10 @@ await WeaverAgent.run(config)
 
 All done! You can now check your Microsoft Fabric Mirrored Snowflake Warehouse´s new One Lake Security policies.
 
-
-https://github.com/user-attachments/assets/4de93aa3-e6c2-4c5b-b220-b30f6bfafd2f
-
+<!-- The local MP4 renders in VS Code Markdown Preview. -->
+<video src="./assets/PolicyWeaverSnowflake.mp4" controls width="100%">
+  Your Markdown viewer does not support embedded video. <a href="./assets/PolicyWeaverSnowflake.mp4">Watch the demo (PolicyWeaverSnowflake.mp4)</a>.
+</video>
 
 ## :thread: Dataverse specific setup (Beta)
 
