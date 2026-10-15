@@ -120,7 +120,9 @@ We also assume you already have a mirrored catalog in Microsoft Fabric. If not, 
 To allow Policy Weaver to read the Unity Catalog metadata and access policies, you need to assign the following roles to your Azure Service Principal:
 1. Go to the Account Admin Console (https://accounts.azuredatabricks.net/) :arrow_right: User Management :arrow_right: Add your Azure Service Principal. 
 1. Click on the Service Principal and go to the Roles tab :arrow_right: Assign the role "Account Admin"
-3. Go to the "Credentials & Secrets" tab :arrow_right: Generate an OAuth Secret. Save the secret, you will need it in your config.yaml file as the `account_api_token`.
+3. Go to the "Credentials & Secrets" tab :arrow_right: Generate an OAuth Secret with the scope "all-apis". Save the secret, you will need it in your config.yaml file as the `account_api_token`.
+4. In the account admin console, go to workspaces and click on the the workspace you want Policy Weaver to access and ensure your Service Principal has at least "workspace access" on this workspace.
+5. Then go to the workspace and select the catalog. Go to permissions on the catalog level and give the Service Principal "READ METADATA" permissions on the catalog
 
 ### Update your Configuration file
 Download this [config.yaml](./config.yaml) file template and update it based on your environment.
