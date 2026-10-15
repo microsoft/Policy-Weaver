@@ -375,7 +375,7 @@ class SnowflakeAPIClient:
             Parse a CASE WHEN row filter definition to extract group memberships and their values.
             
             Args:
-                sql_definition: The SQL CASE statement from a row filter
+                sql_definition: The SQL CASE statement from a row filter (in lowercase)
                 
             Returns:
                 Dictionary containing:
@@ -386,14 +386,14 @@ class SnowflakeAPIClient:
             result = RowFilterDetails(groups=[], default_value=None, row_filter_type=RowFilterType.EXPLICIT_GROUP_MEMBERSHIP)
 
             # Remove CASE and END
-            content = sql_definition.replace('CASE', '').replace('END', '').strip()
+            content = sql_definition.replace('case', '').replace('end', '').strip()
             
             # Find all WHEN...THEN patterns
-            when_pattern = r"WHENcurrent_role\(\)in\('([^']+)'\)THEN([^W]+?)(?=WHEN|ELSE|$)"
+            when_pattern = r"whencurrent_role\(\)in\('([^']+)'\)then([^w]+?)(?=when|else|$)"
             when_matches = re.findall(when_pattern, content)
             
             # Find ELSE clause
-            else_pattern = r"ELSE(.+?)$"
+            else_pattern = r"else(.+?)$"
             else_match = re.search(else_pattern, content)
                         
             # Extract group and expression pairs
@@ -412,7 +412,7 @@ class SnowflakeAPIClient:
         Parse an IF row filter definition to extract group membership and their values.
         
         Args:
-            sql_definition: The SQL IF statement from a row filter
+            definition: The SQL IF statement from a row filter (in lowercase)
         Returns:
             Dictionary containing:
 
@@ -456,21 +456,21 @@ class SnowflakeAPIClient:
 
     def __extract_logic_from_row_filter__(self, sql_definition: str) -> RowFilterDetails:
         """
-        Extracts the group name and mask pattern from a column mask function definition.
+        Extracts the group name and mask pattern from a column mask function definition (in lowercase).
         
         Args:
-            sql_definition (str): The SQL definition containing is_account_group_member function
+            sql_definition (str): The SQL definition containing is_account_group_member function (in lowercase)
 
         Returns:
-            ColumnMaskExtraction: An object containing the extracted group name and mask pattern
+            RowFilterDetails: An object containing the extracted row filter logic
         """
 
         result = RowFilterDetails(row_filter_type=RowFilterType.UNSUPPORTED)
         definition = sql_definition.replace("\n", " ").replace("\r", " ").replace(" ", "") 
-
+        definition = definition.lower()
         if definition.startswith("current_role()"):
             result_ = self.__extract_if_logic_row_filter__(definition)
-        elif definition.startswith("CASEWHENcurrent_role()"):
+        elif definition.startswith("casewhencurrent_role()"):
             result_ = self.__extract_case_when_logic_row_filter__(definition)
         else:
             result_ = None
