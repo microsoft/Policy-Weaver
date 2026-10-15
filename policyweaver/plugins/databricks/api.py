@@ -112,15 +112,17 @@ class DatabricksAPIClient:
 
         return service_principals
 
-    @staticmethod
-    def get_members(group_id, dbx_groups):
+    def get_members(self, group_id, dbx_groups):
         dbx_group = dbx_groups.get(group_id)
         if not dbx_group:
             print("Group not found")
             return []
         members = list()
         if not ("members" in dbx_group):
-            return members
+            hydrated = self.account_client.groups.get(dbx_group["id"])
+            dbx_members = hydrated.members if hydrated.members else []
+            dbx_members = [m.as_dict() for m in dbx_members]
+            dbx_group["members"] = dbx_members
 
         for member in dbx_group["members"]:
             if "Groups" in member["$ref"]:
@@ -129,7 +131,7 @@ class DatabricksAPIClient:
                 if subgroup.get("externalId"):
                     member["externalId"] = subgroup["externalId"]
                 else:
-                    sub_group_members = DatabricksAPIClient.get_members(member["value"], dbx_groups)
+                    sub_group_members = self.get_members(member["value"], dbx_groups)
                     members.extend(sub_group_members)
         
             member["byGroup"] = dbx_group["displayName"]
@@ -156,7 +158,7 @@ class DatabricksAPIClient:
                 external_id=g["externalId"]
             )
             else:
-                members = DatabricksAPIClient.get_members(g["id"], dbx_groups)
+                members = self.get_members(g["id"], dbx_groups)
 
                 group = DatabricksGroup(
                     id=g["id"],
