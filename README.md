@@ -77,13 +77,11 @@ Before installing and running this solution, ensure you have:
 
 > :pushpin: **Note:** Every source catalog has additional pre-requisites
 
-### Prerequisites for the *consumers* of the data
+### Notes on the *consumption* of the data
 
-The prerequisites above let Policy Weaver **write** OneLake security roles. The following are
-required for those roles to be **enforced** when a user queries the data. Without them Policy
-Weaver reports success and the roles either have no effect or deny everything.
+The prerequisites above let Policy Weaver **write** OneLake security roles. The following notes apply when a user queries the data.s
 
-#### 1. Set the SQL analytics endpoint to *User's identity access mode*
+#### 1. To enable Onelake Security for SQL analytics endpoint and direct lake mode (via SQL AEP), set the SQL analytics endpoint to *User's identity access mode*
 
 Newly created SQL analytics endpoints start in **delegated identity access mode**, in which
 OneLake security roles are **ignored** and access is governed only by SQL `GRANT`/`REVOKE`.
@@ -100,15 +98,7 @@ recreated, the setting is lost** and must be reapplied. There is no REST API for
 
 #### 2. Give every principal in a role Fabric access to the item - including groups
 
-A principal named in a OneLake security role must also hold Read permission on the Fabric item
-(for example via the **Viewer** workspace role). If a role names an Entra group, that **group
-itself** must hold the workspace role; granting it only to a *member* of the group is not
-sufficient.
-
-#### 3. Use the **Viewer** workspace role for governed users
-
-Workspace **Admin**, **Member**, and **Contributor** bypass OneLake security entirely and read
-all data regardless of the roles Policy Weaver writes.
+A principal named in a OneLake security role must also hold Read permission on the Fabric item.
 
 
 ## :thread: Databricks specific setup

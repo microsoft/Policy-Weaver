@@ -1,70 +1,149 @@
+import asyncio
 import os
-import certifi
+from urllib.parse import quote
 
+import certifi
 import logging
-from msgraph.graph_service_client import GraphServiceClient
-from kiota_abstractions.api_error import APIError
+import requests
 
 from policyweaver.core.auth import ServicePrincipal
 from policyweaver.core.utility import Utils
 
 class MicrosoftGraphClient:
     """
-    A class to interact with the Microsoft Graph API for user management.
-    This class provides methods to look up user IDs by email addresses.
+    A class to interact with the Microsoft Graph REST API.
+    This class provides methods to look up user IDs by email address and
+    service principal object IDs by application ID.
     Attributes:
         logger (logging.Logger): Logger instance for logging API interactions.
-        graph_client (GraphServiceClient): Client for making requests to the Microsoft Graph API.
     """
     def __init__(self):
         """
-        Initializes the MicrosoftGraphClient with a logger and a GraphServiceClient.
+        Initializes the MicrosoftGraphClient with a logger.
         Sets the SSL certificate file to ensure secure connections.
-        
-        Raises:
-            ValueError: If the ServicePrincipal credentials are not set.
         """
         self.logger = logging.getLogger("POLICY_WEAVER")
         os.environ["SSL_CERT_FILE"] = certifi.where()
 
-        self.graph_client = GraphServiceClient(
-            credentials=ServicePrincipal.Credential,
-            scopes=["https://graph.microsoft.com/.default"],
+    async def get_service_principal_by_id(self, id: str) -> str | None:
+        """
+        Looks up a service principal object ID by its application (client) ID
+        using the Microsoft Graph REST API.
+
+        This direct REST request works around insufficient_claims responses from
+        the Graph SDK when the same service-principal token is accepted by Graph.
+
+        Args:
+            id (str): The application (client) ID of the service principal.
+
+        Returns:
+            str | None: The service principal object ID if found, otherwise None.
+        """
+        app_id = id.strip()
+        graph_url = (
+            "https://graph.microsoft.com/v1.0/servicePrincipals"
+            f"(appId='{quote(app_id, safe='-')}')"
         )
 
-    async def get_service_principal_by_id(self, id:str) -> str:
-        """
-        Looks up a service principal by its ID.
-        Args:
-            id (str): The ID of the service principal to look up.
-        Returns:
-            str: The service principal ID if found, None otherwise.
-        """
         try:
-            sp = await self.graph_client.service_principals_with_app_id(id).get()
-            if sp:
-                self.logger.debug(f"MSFT GRAPH CLIENT {id} - {sp.id}")
-                return sp.id
-        except APIError:
-            self.logger.debug(f"MSFT GRAPH CLIENT {id} - SERVICE PRINCIPAL NOT FOUND IN GRAPH API")
+            response = await self._graph_rest_get(graph_url)
+        except requests.RequestException:
+            self.logger.exception(
+                f"MSFT GRAPH REST CLIENT {id} - SERVICE PRINCIPAL REQUEST FAILED"
+            )
             return None
-        
 
-    async def get_user_by_email(self, email: str) -> str:
+        if response.status_code == 200:
+            sp_id = response.json().get("id")
+            if not sp_id:
+                self.logger.error(
+                    f"MSFT GRAPH REST CLIENT {id} - RESPONSE MISSING SERVICE PRINCIPAL ID"
+                )
+                return None
+
+            self.logger.debug(f"MSFT GRAPH REST CLIENT {id} - FOUND - {sp_id}")
+            return sp_id
+
+        if response.status_code == 404:
+            self.logger.debug(
+                f"MSFT GRAPH REST CLIENT {id} - SERVICE PRINCIPAL NOT FOUND"
+            )
+            return None
+
+        self.logger.error(
+            f"MSFT GRAPH REST CLIENT {id} - HTTP {response.status_code} - "
+            f"{response.text}"
+        )
+        return None
+
+    async def _graph_rest_get(self, url: str) -> requests.Response:
         """
-        Looks up a user ID by their email address.
+        Sends an authenticated GET request to Microsoft Graph without blocking the event loop.
         Args:
-            email (str): The email address of the user to look up. 
+            url (str): The full Microsoft Graph URL.
         Returns:
-            str: The user ID if found, None otherwise.
+            requests.Response: The HTTP response.
+        Raises:
+            requests.RequestException: If the request cannot be completed.
         """
-        try:
-            u = await self.graph_client.users.by_user_id(email.lower()).get()
+        access_token = ServicePrincipal.get_token(
+            scope="https://graph.microsoft.com/.default"
+        )
+        return await asyncio.to_thread(
+            requests.get,
+            url,
+            headers={
+                "Authorization": f"Bearer {access_token}",
+                "Accept": "application/json",
+            },
+            timeout=30,
+        )
 
-            if u: 
-                self.logger.debug(f"MSFT GRAPH CLIENT {email} - {u.id}")
-                return u.id 
-        except APIError:
-            self.logger.debug(f"MSFT GRAPH CLIENT {email} - USER NOT FOUND IN GRAPH API")
+
+    async def get_user_by_email(self, email: str) -> str | None:
+        """
+        Looks up a user ID by email using the Microsoft Graph REST API.
+
+        This direct REST request works around insufficient_claims responses from
+        the Graph SDK when the same service-principal token is accepted by Graph.
+
+        Args:
+            email (str): The email address of the user to look up.
+
+        Returns:
+            str | None: The user ID if found, otherwise None.
+        """
+        normalized_email = email.strip().lower()
+        encoded_user = quote(normalized_email, safe="@.")
+        graph_url = f"https://graph.microsoft.com/v1.0/users/{encoded_user}"
+
+        try:
+            response = await self._graph_rest_get(graph_url)
+        except requests.RequestException:
+            self.logger.exception(f"MSFT GRAPH REST CLIENT {email} - REQUEST FAILED")
             return None
-       
+
+        if response.status_code == 200:
+            user_id = response.json().get("id")
+            if not user_id:
+                self.logger.error(
+                    f"MSFT GRAPH REST CLIENT {email} - RESPONSE MISSING USER ID"
+                )
+                return None
+
+            self.logger.info(
+                f"MSFT GRAPH REST CLIENT {email} - FOUND - {user_id}"
+            )
+            return user_id
+
+        if response.status_code == 404:
+            self.logger.warning(
+                f"MSFT GRAPH REST CLIENT {email} - USER NOT FOUND"
+            )
+            return None
+
+        self.logger.error(
+            f"MSFT GRAPH REST CLIENT {email} - HTTP {response.status_code} - "
+            f"{response.text}"
+        )
+        return None
